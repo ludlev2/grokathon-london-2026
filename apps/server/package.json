@@ -10,6 +10,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@grokathon-london-2026/agent": "workspace:*",
     "@grokathon-london-2026/api": "workspace:*",
     "@grokathon-london-2026/db": "workspace:*",
     "@grokathon-london-2026/env": "workspace:*",

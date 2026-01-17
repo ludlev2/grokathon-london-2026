@@ -17,6 +17,7 @@
     "@ai-sdk/xai": "^3.0.26",
     "@grokathon-london-2026/env": "workspace:*",
     "ai": "6.0.0-beta.169",
+    "yaml": "^2.8.2",
     "zod": "catalog:"
   },
   "devDependencies": {

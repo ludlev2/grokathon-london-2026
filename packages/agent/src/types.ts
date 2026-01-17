@@ -32,8 +32,7 @@ export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
 export type ToolResult =
   | { type: "text"; content: string }
   | { type: "json"; content: unknown }
-  | { type: "error"; message: string }
-  | { type: "done"; message: string };
+  | { type: "error"; message: string };
 
 /**
  * Signal to indicate the agent should stop
@@ -53,12 +52,6 @@ export interface AgentConfig {
   systemPrompt: string;
   /** Available tools */
   tools: Record<string, ToolDefinition>;
-  /**
-   * Whether to require explicit task completion via done tool.
-   * When true, agent loops until done tool is called.
-   * @default true
-   */
-  requireDoneTool?: boolean;
   /** Maximum number of steps before forcing stop */
   maxSteps?: number;
   /**

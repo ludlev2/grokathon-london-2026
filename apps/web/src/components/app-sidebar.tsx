@@ -91,7 +91,7 @@ export function AppSidebar() {
                   <FlaskConical className="size-4" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">Data Sandbox</span>
+                  <span className="font-semibold">xAI Data Analyst</span>
                   <span className="text-xs text-muted-foreground">Analysis Tool</span>
                 </div>
               </a>

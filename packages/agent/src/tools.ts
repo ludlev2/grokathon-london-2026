@@ -12,28 +12,6 @@ export function defineTool<TSchema extends z.ZodTypeAny>(
 }
 
 /**
- * Create the built-in "done" tool that signals task completion
- */
-export function createDoneTool(): ToolDefinition<typeof doneToolSchema> {
-  return {
-    description:
-      "Call this tool when you have completed the task. Provide a final message summarizing what was accomplished.",
-    inputSchema: doneToolSchema,
-    execute: async ({ message }) => {
-      // Return a done result instead of throwing - the agent will check for this
-      return { type: "done" as const, message };
-    },
-  };
-}
-
-const doneToolSchema = z.object({
-  message: z
-    .string()
-    .max(2000)
-    .describe("Final message summarizing task completion"),
-});
-
-/**
  * Convert our tool definitions to AI SDK format
  */
 export function convertToolsToSDK(
@@ -66,8 +44,6 @@ function formatToolResult(result: ToolResult): string {
       return JSON.stringify(result.content, null, 2);
     case "error":
       return `Error: ${result.message}`;
-    case "done":
-      return result.message;
     default: {
       const _exhaustive: never = result;
       throw new Error(`Unhandled result type: ${_exhaustive}`);

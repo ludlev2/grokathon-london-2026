@@ -18,7 +18,6 @@ export { createAgent, type Agent } from "./agent.js";
 // Tools
 export {
   defineTool,
-  createDoneTool,
   textResult,
   jsonResult,
   errorResult,
@@ -29,6 +28,13 @@ export {
   createSnowflakeTools,
   type SnowflakeService,
 } from "./tools/snowflake.js";
+
+// Rill tools
+export { createRillTools, type RillService } from "./tools/rill.js";
+
+// Rill service implementations
+export { createLocalRillService } from "./services/rill-local.js";
+export { createMockRillService } from "./services/rill-mock.js";
 
 // Context management
 export { createContext, addMessage, getMessages } from "./context.js";

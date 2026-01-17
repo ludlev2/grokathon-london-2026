@@ -1,4 +1,4 @@
-import { generateText, stepCountIs } from "ai";
+import { generateText, streamText, stepCountIs } from "ai";
 import type {
   AgentConfig,
   AgentContext,
@@ -8,7 +8,7 @@ import type {
 } from "./types.js";
 import { TaskComplete } from "./types.js";
 import { getModel } from "./models.js";
-import { convertToolsToSDK, createDoneTool } from "./tools.js";
+import { convertToolsToSDK } from "./tools.js";
 import {
   createContext,
   addMessage,
@@ -20,32 +20,11 @@ import {
 const DEFAULT_MAX_STEPS = 50;
 
 /**
- * Extract done message from tool results if the done tool was called
- */
-function extractDoneMessage(steps: Array<{ toolResults: Array<{ toolName: string; output: unknown }> }>): string | null {
-  for (const step of steps) {
-    for (const toolResult of step.toolResults) {
-      if (toolResult.toolName === "done" && typeof toolResult.output === "string") {
-        return toolResult.output;
-      }
-    }
-  }
-  return null;
-}
-
-/**
  * Create an agent with the given configuration
  */
 export function createAgent(config: AgentConfig) {
-  const requireDoneTool = config.requireDoneTool ?? true;
   const maxSteps = config.maxSteps ?? DEFAULT_MAX_STEPS;
-
-  // Add done tool if required
   const allTools: Record<string, ToolDefinition> = { ...config.tools };
-  if (requireDoneTool) {
-    allTools.done = createDoneTool();
-  }
-
   const sdkTools = convertToolsToSDK(allTools);
   const model = getModel(config.apiKey);
 
@@ -91,25 +70,19 @@ export function createAgent(config: AgentConfig) {
 
         context.stepCount = result.steps.length;
 
-        // Check if done tool was called - this is the primary completion signal
-        const doneMessage = extractDoneMessage(result.steps);
-        if (doneMessage) {
-          finalText = doneMessage;
-        } else {
-          // Handle reasoning models - they may return content in reasoningText instead of text
-          finalText = result.text || result.reasoningText || "";
+        // Handle reasoning models - they may return content in reasoningText instead of text
+        finalText = result.text || result.reasoningText || "";
 
-          // If still no text, check the last step for any text content
-          if (!finalText && result.steps.length > 0) {
-            const lastStep = result.steps[result.steps.length - 1];
-            if (lastStep) {
-              finalText = lastStep.text || lastStep.reasoningText || "";
-            }
+        // If still no text, check the last step for any text content
+        if (!finalText && result.steps.length > 0) {
+          const lastStep = result.steps[result.steps.length - 1];
+          if (lastStep) {
+            finalText = lastStep.text || lastStep.reasoningText || "";
           }
+        }
 
-          if (!finalText && context.stepCount >= maxSteps) {
-            finalText = `Agent reached maximum steps (${maxSteps}) without completing.`;
-          }
+        if (!finalText && context.stepCount >= maxSteps) {
+          finalText = `Agent reached maximum steps (${maxSteps}) without completing.`;
         }
       } catch (error) {
         if (error instanceof TaskComplete) {
@@ -127,7 +100,8 @@ export function createAgent(config: AgentConfig) {
     },
 
     /**
-     * Run the agent with streaming events
+     * Run the agent with real-time streaming events.
+     * Events are emitted as they happen, not after all steps complete.
      */
     async *queryStream(prompt: string): AsyncGenerator<AgentEvent> {
       const context = createContext();
@@ -142,7 +116,7 @@ export function createAgent(config: AgentConfig) {
         // Check if context compaction is needed
         await maybeCompactContext(context, config);
 
-        const result = await generateText({
+        const result = streamText({
           model,
           system: config.systemPrompt,
           messages: getMessages(context),
@@ -150,57 +124,66 @@ export function createAgent(config: AgentConfig) {
           stopWhen: stepCountIs(maxSteps),
         });
 
-        // Emit events for each step
-        for (let i = 0; i < result.steps.length; i++) {
-          const step = result.steps[i];
-          if (!step) continue;
+        let currentStep = 0;
+        let accumulatedText = "";
 
-          // Emit tool call events
-          for (const toolCall of step.toolCalls) {
-            yield {
-              type: "tool_call",
-              toolName: toolCall.toolName,
-              args: toolCall.input,
-            };
+        // Stream events in real-time
+        for await (const chunk of result.fullStream) {
+          switch (chunk.type) {
+            case "tool-call":
+              yield {
+                type: "tool_call",
+                toolName: chunk.toolName,
+                args: chunk.input,
+              };
+              break;
+
+            case "tool-result":
+              yield {
+                type: "tool_result",
+                toolName: chunk.toolName,
+                result: { type: "text", content: String(chunk.output) },
+              };
+              currentStep++;
+              yield { type: "step_complete", stepNumber: currentStep };
+              break;
+
+            case "text-delta":
+              accumulatedText += chunk.text;
+              yield { type: "text_delta", delta: chunk.text };
+              break;
+
+            case "reasoning-delta":
+              // For reasoning models, treat reasoning as text delta
+              yield { type: "text_delta", delta: chunk.text };
+              accumulatedText += chunk.text;
+              break;
+
+            case "error":
+              throw new Error(String(chunk.error));
           }
-
-          // Emit tool result events
-          for (const toolResult of step.toolResults) {
-            yield {
-              type: "tool_result",
-              toolName: toolResult.toolName,
-              result: { type: "text", content: String(toolResult.output) },
-            };
-          }
-
-          yield { type: "step_complete", stepNumber: i + 1 };
         }
 
+        // Get the final response for context management
+        const response = await result.response;
+
         // Add all response messages to context
-        for (const msg of result.response.messages) {
+        for (const msg of response.messages) {
           addMessage(context, msg);
         }
 
-        context.stepCount = result.steps.length;
+        context.stepCount = currentStep;
 
-        // Check if done tool was called
-        const doneMessage = extractDoneMessage(result.steps);
-        let responseText: string;
-
-        if (doneMessage) {
-          responseText = doneMessage;
-        } else {
-          // Handle reasoning models
-          responseText = result.text || result.reasoningText || "";
-        }
-
-        if (responseText) {
-          yield { type: "text_delta", delta: responseText };
+        // Get final text if not accumulated during streaming
+        if (!accumulatedText) {
+          const finalText = await result.text;
+          const reasoningText = await result.reasoningText;
+          accumulatedText = finalText || reasoningText || "";
         }
 
         yield {
           type: "done",
-          result: responseText || `Completed in ${context.stepCount} steps`,
+          result: accumulatedText || `Completed in ${context.stepCount} steps`,
         };
       } catch (error) {
         if (error instanceof TaskComplete) {
@@ -209,6 +192,23 @@ export function createAgent(config: AgentConfig) {
           throw error;
         }
       }
+    },
+
+    /**
+     * Get the raw streamText result for integration with AI SDK response helpers
+     */
+    queryStreamRaw(prompt: string) {
+      const context = createContext();
+      addMessage(context, { role: "user", content: prompt });
+      trimEphemeralMessages(context, allTools);
+
+      return streamText({
+        model,
+        system: config.systemPrompt,
+        messages: getMessages(context),
+        tools: sdkTools,
+        stopWhen: stepCountIs(maxSteps),
+      });
     },
 
     /**
@@ -243,17 +243,11 @@ export function createAgent(config: AgentConfig) {
 
         context.stepCount += result.steps.length;
 
-        // Check if done tool was called
-        const doneMessage = extractDoneMessage(result.steps);
-        if (doneMessage) {
-          finalText = doneMessage;
-        } else {
-          // Handle reasoning models
-          finalText = result.text || result.reasoningText || "";
+        // Handle reasoning models
+        finalText = result.text || result.reasoningText || "";
 
-          if (!finalText && context.stepCount >= maxSteps) {
-            finalText = `Agent reached maximum steps (${maxSteps}) without completing.`;
-          }
+        if (!finalText && context.stepCount >= maxSteps) {
+          finalText = `Agent reached maximum steps (${maxSteps}) without completing.`;
         }
       } catch (error) {
         if (error instanceof TaskComplete) {

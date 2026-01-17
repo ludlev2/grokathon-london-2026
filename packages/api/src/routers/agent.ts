@@ -2,88 +2,102 @@ import { z } from "zod";
 import { publicProcedure, router } from "../index";
 import {
   createAgent,
-  defineTool,
-  textResult,
-  jsonResult,
+  createRillTools,
+  createLocalRillService,
+  createMockRillService,
 } from "@grokathon-london-2026/agent";
 
-// Define tools for the agent
-const weatherTool = defineTool({
-  description: "Get the current weather for a location",
-  inputSchema: z.object({
-    location: z.string().max(100).describe("City name or location"),
-  }),
-  execute: async ({ location }) => {
-    const conditions = ["sunny", "cloudy", "rainy", "partly cloudy"];
-    const condition = conditions[Math.floor(Math.random() * conditions.length)];
-    const temp = Math.floor(Math.random() * 30) + 10;
-    return jsonResult({
-      location,
-      temperature: temp,
-      unit: "celsius",
-      condition,
-    });
-  },
-});
+// Data Analyst System Prompt
+const DATA_ANALYST_SYSTEM_PROMPT = `You are an expert Data Analyst AI assistant powered by Grok. Your role is to help users explore, analyze, and understand their data using Rill Data.
 
-const calculatorTool = defineTool({
-  description:
-    "Perform basic math calculations (add, subtract, multiply, divide)",
-  inputSchema: z.object({
-    a: z.number().describe("First number"),
-    b: z.number().describe("Second number"),
-    operation: z
-      .enum(["add", "subtract", "multiply", "divide"])
-      .describe("The operation to perform"),
-  }),
-  execute: async ({ a, b, operation }) => {
-    let result: number;
-    switch (operation) {
-      case "add":
-        result = a + b;
-        break;
-      case "subtract":
-        result = a - b;
-        break;
-      case "multiply":
-        result = a * b;
-        break;
-      case "divide":
-        if (b === 0) {
-          return { type: "error" as const, message: "Division by zero" };
-        }
-        result = a / b;
-        break;
-      default: {
-        const _exhaustive: never = operation;
-        throw new Error(`Unknown operation: ${_exhaustive}`);
-      }
-    }
-    return textResult(`${a} ${operation} ${b} = ${result}`);
-  },
-});
+## Your Capabilities
+You have access to tools that let you:
+- Query data using SQL (rill_query)
+- Query metrics views with dimensions and measures (rill_query_metrics)
+- List and explore data sources (rill_list_sources)
+- List and explore SQL models (rill_list_models)
+- List and describe metrics views (rill_list_metrics_views, rill_describe_metrics_view)
+- List dashboards (rill_list_dashboards)
+- Check project status (rill_project_status)
+- Read project files like SQL models and YAML configs (rill_read_file)
+- List files in the project (rill_list_files)
+
+## Analysis Workflow
+When analyzing data, follow this systematic approach:
+
+1. **Understand the Project**: Start by getting project status and listing available data artifacts
+2. **Explore the Schema**: List sources, models, and metrics views to understand the data structure
+3. **Examine Definitions**: Read SQL models or describe metrics views to understand calculations
+4. **Query Data**: Execute SQL queries or metrics aggregations to answer questions
+5. **Iterate**: Refine queries based on results to dig deeper
+
+## Best Practices
+- Always start with exploratory queries (LIMIT 10-20) before running full analyses
+- Use metrics views when available - they have pre-defined, validated calculations
+- Explain your analysis approach before diving into queries
+- Present findings clearly with key insights highlighted
+- Suggest follow-up analyses when patterns emerge
+- Be honest about limitations or data quality issues you notice
+
+## Query Guidelines
+- Write clean, readable SQL with proper formatting
+- Use meaningful aliases for computed columns
+- Add comments for complex calculations
+- Use appropriate aggregations (SUM, AVG, COUNT, etc.)
+- Always include LIMIT clauses to prevent overwhelming results
+
+## Communication Style
+- Be conversational but precise
+- Explain technical concepts in accessible terms
+- Present numbers with context (comparisons, percentages, trends)
+- Use markdown formatting for clarity (tables, lists, code blocks)
+- Ask clarifying questions if the analysis goal is unclear
+
+Remember: Your goal is to help users gain actionable insights from their data. Focus on telling the story the data reveals.`;
+
+// Configuration for the Rill project path
+// Set USE_REAL_RILL=true and RILL_PROJECT_PATH to use real Rill CLI
+const USE_REAL_RILL = process.env.USE_REAL_RILL === "true";
+let defaultRillProjectPath: string | undefined = process.env.RILL_PROJECT_PATH || "/mock/ecommerce-analytics";
+
+// Create Rill service - use local CLI if configured, otherwise mock
+const rillService = USE_REAL_RILL ? createLocalRillService() : createMockRillService();
+
+console.log(`[Agent] Using ${USE_REAL_RILL ? "REAL Rill CLI" : "Mock Rill Service"}`);
+console.log(`[Agent] Default project path: ${defaultRillProjectPath}`);
 
 // Lazy agent creation to ensure env vars are loaded
 let agent: ReturnType<typeof createAgent> | null = null;
 
-function getAgent() {
+function getAgent(projectPath?: string) {
+  // Recreate agent if project path changes
+  const effectivePath = projectPath || defaultRillProjectPath;
+
   if (!agent) {
     console.log("[Agent Router] Creating agent instance");
     console.log("[Agent Router] XAI_API_KEY present:", !!process.env.XAI_API_KEY);
+    console.log("[Agent Router] Rill project path:", effectivePath || "not set");
+
+    const rillTools = createRillTools(rillService, effectivePath);
 
     agent = createAgent({
-      systemPrompt: `You are a helpful AI assistant powered by Grok. You can help with various tasks.
-You have access to tools for checking weather and doing math calculations.
-Be concise and helpful in your responses.
-When you have completed the user's request, use the done tool to signal completion with a summary.`,
-      tools: {
-        weather: weatherTool,
-        calculator: calculatorTool,
-      },
-      maxSteps: 10,
+      systemPrompt: DATA_ANALYST_SYSTEM_PROMPT,
+      tools: rillTools,
+      maxSteps: 25, // Data analysis often requires multiple queries
     });
   }
   return agent;
+}
+
+// Helper to reset the agent (useful when project path changes)
+export function resetAgent() {
+  agent = null;
+}
+
+// Helper to set the default project path
+export function setDefaultRillProjectPath(path: string) {
+  defaultRillProjectPath = path;
+  agent = null; // Reset agent to pick up new path
 }
 
 export const agentRouter = router({
@@ -91,6 +105,7 @@ export const agentRouter = router({
     .input(
       z.object({
         message: z.string().min(1).max(4000),
+        projectPath: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -98,7 +113,7 @@ export const agentRouter = router({
         console.log("[Agent Router] Starting query:", input.message);
         console.log("[Agent Router] XAI_API_KEY present:", !!process.env.XAI_API_KEY);
 
-        const result = await getAgent().query(input.message);
+        const result = await getAgent(input.projectPath).query(input.message);
 
         console.log("[Agent Router] Query complete:", {
           textLength: result.text?.length,
@@ -154,5 +169,17 @@ export const agentRouter = router({
 
         throw error;
       }
+    }),
+
+  // Set the Rill project path
+  setProjectPath: publicProcedure
+    .input(
+      z.object({
+        projectPath: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input }) => {
+      setDefaultRillProjectPath(input.projectPath);
+      return { success: true, projectPath: input.projectPath };
     }),
 });

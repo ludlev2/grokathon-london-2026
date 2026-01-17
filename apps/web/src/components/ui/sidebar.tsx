@@ -500,7 +500,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-	"peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-none p-2 text-left text-xs outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+	"peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-none p-2 text-left text-xs outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 group-data-[collapsible=icon]:[&>span:last-child]:hidden group-data-[collapsible=icon]:group-data-[hover-expanded=true]:[&>span:last-child]:inline",
 	{
 		variants: {
 			variant: {
@@ -547,25 +547,8 @@ function SidebarMenuButton({
 		/>
 	);
 
-	if (!tooltip) {
-		return button;
-	}
-
-	if (typeof tooltip === "string") {
-		tooltip = {
-			children: tooltip,
-		};
-	}
-
-	// Only show tooltip when collapsed and not hover-expanded
-	const showTooltip = state === "collapsed" && !isHoverExpanded && !isMobile;
-
-	return (
-		<Tooltip>
-			<TooltipTrigger render={button} />
-			{showTooltip && <TooltipContent side="right" {...tooltip} />}
-		</Tooltip>
-	);
+	// Don't wrap in tooltip - just return the button
+	return button;
 }
 
 function SidebarMenuAction({
