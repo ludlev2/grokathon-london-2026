@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
 import { Bot, Send, User, Loader2, ChevronDown, ChevronUp, Wrench, Sparkles, Check, Terminal } from "lucide-react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -627,7 +628,7 @@ function AgentComponent() {
                     </div>
                   ) : message.role === "assistant" ? (
                     <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-table:w-full prose-table:border-collapse prose-table:my-4 prose-th:border prose-th:border-border prose-th:bg-muted prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-2">
-                      <Markdown>{message.content}</Markdown>
+                      <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
                     </div>
                   ) : (
                     <p className="whitespace-pre-wrap">{message.content}</p>
