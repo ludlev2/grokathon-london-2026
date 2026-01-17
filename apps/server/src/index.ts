@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { streamSSE } from "hono/streaming";
+import { serve } from "@hono/node-server";
 import {
   createAgent,
   // Approach A: Specialized (11 tools)
@@ -42,19 +43,10 @@ app.get("/", (c) => {
 });
 
 // ===========================================
-// MODE SELECTION
-// ===========================================
-// Set AGENT_MODE=specialized for 11-tool approach
-// Set AGENT_MODE=general for 2-tool approach (default)
-type AgentMode = "specialized" | "general";
-const AGENT_MODE: AgentMode =
-  (process.env.AGENT_MODE as AgentMode) || "general";
-
-console.log(`[Server] Agent Mode: ${AGENT_MODE.toUpperCase()}`);
-
-// ===========================================
 // SYSTEM PROMPTS
 // ===========================================
+
+type AgentMode = "specialized" | "general";
 
 const SPECIALIZED_SYSTEM_PROMPT = `You are an expert Data Analyst AI assistant powered by Grok. Your role is to help users explore, analyze, and understand their data using Rill Data.
 
@@ -141,28 +133,27 @@ let defaultRillProjectPath: string | undefined =
 
 console.log(`[Server] Default project path: ${defaultRillProjectPath}`);
 
-function createStreamingAgent(projectPath?: string) {
+function createStreamingAgent(mode: AgentMode, projectPath?: string) {
   const effectivePath = projectPath || defaultRillProjectPath || ".";
 
-  let tools;
-  let systemPrompt;
-
-  if (AGENT_MODE === "specialized") {
+  if (mode === "specialized") {
     // Approach A: 11 specialized Rill tools
     const rillService = createLocalRillService();
-    tools = createRillTools(rillService, effectivePath);
-    systemPrompt = SPECIALIZED_SYSTEM_PROMPT;
-  } else {
-    // Approach B: 2 general tools
-    const executionService = createLocalExecutionService({
-      projectPath: effectivePath,
+    const tools = createRillTools(rillService, effectivePath);
+    return createAgent({
+      systemPrompt: SPECIALIZED_SYSTEM_PROMPT,
+      tools,
+      maxSteps: 25,
     });
-    tools = createExecutionTools(executionService);
-    systemPrompt = GENERAL_SYSTEM_PROMPT;
   }
 
+  // Approach B: 2 general tools (default)
+  const executionService = createLocalExecutionService({
+    projectPath: effectivePath,
+  });
+  const tools = createExecutionTools(executionService);
   return createAgent({
-    systemPrompt,
+    systemPrompt: GENERAL_SYSTEM_PROMPT,
     tools,
     maxSteps: 25,
   });
@@ -170,19 +161,23 @@ function createStreamingAgent(projectPath?: string) {
 
 // Streaming chat endpoint using Server-Sent Events
 app.post("/api/chat/stream", async (c) => {
-  const body = await c.req.json<{ message: string; projectPath?: string }>();
-  const { message, projectPath } = body;
+  const body = await c.req.json<{
+    message: string;
+    mode?: AgentMode;
+    projectPath?: string;
+  }>();
+  const { message, mode = "general", projectPath } = body;
 
   if (!message || typeof message !== "string") {
     return c.json({ error: "Message is required" }, 400);
   }
 
   console.log("[Stream] Starting query:", message);
-  console.log("[Stream] Mode:", AGENT_MODE);
+  console.log("[Stream] Mode:", mode);
 
   return streamSSE(c, async (stream) => {
     try {
-      const agent = createStreamingAgent(projectPath);
+      const agent = createStreamingAgent(mode, projectPath);
 
       for await (const event of agent.queryStream(message)) {
         await stream.writeSSE({
@@ -210,21 +205,15 @@ app.post("/api/config/project-path", async (c) => {
   return c.json({ success: true, projectPath: body.projectPath });
 });
 
-// Get current mode
-app.get("/api/config/mode", (c) => {
+// Get current config
+app.get("/api/config", (c) => {
   return c.json({
-    mode: AGENT_MODE,
     projectPath: defaultRillProjectPath,
+    availableModes: ["general", "specialized"] as const,
   });
 });
 
-import { serve } from "@hono/node-server";
-
-// Use different ports for each mode so they can run side-by-side
-// AGENT_MODE=specialized → port 3000
-// AGENT_MODE=general → port 3002
-// (Web app is on port 3001)
-const PORT = AGENT_MODE === "specialized" ? 3000 : 3002;
+const PORT = 3000;
 
 serve(
   {
@@ -233,10 +222,9 @@ serve(
   },
   (info) => {
     console.log(`\n========================================`);
-    console.log(`  Agent Mode: ${AGENT_MODE.toUpperCase()}`);
-    console.log(`  Tools: ${AGENT_MODE === "specialized" ? "11 specialized" : "2 general"}`);
-    console.log(`  Port: ${info.port}`);
+    console.log(`  Server running on port ${info.port}`);
     console.log(`  URL: http://localhost:${info.port}`);
+    console.log(`  Modes: general (2 tools), specialized (11 tools)`);
     console.log(`========================================\n`);
   },
 );
