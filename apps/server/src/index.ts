@@ -15,6 +15,11 @@ import {
   // Approach B: General (2 tools)
   createExecutionTools,
   createLocalExecutionService,
+  // Browser Use Cloud
+  createBrowserUseTools,
+  createBrowserUseCloudService,
+  // Types
+  type ToolDefinition,
 } from "@grokathon-london-2026/agent";
 
 const app = new Hono();
@@ -130,19 +135,49 @@ Remember: Your goal is to help users gain actionable insights from their data.`;
 
 let defaultRillProjectPath: string | undefined =
   process.env.RILL_PROJECT_PATH || ".";
+const browserUseApiKey = process.env.BROWSER_USE_API_KEY;
 
 console.log(`[Server] Default project path: ${defaultRillProjectPath}`);
+console.log(`[Server] Browser Use API: ${browserUseApiKey ? "enabled" : "disabled"}`);
+
+// Create browser tools if API key is available
+function getBrowserTools(): Record<string, ToolDefinition> {
+  if (!browserUseApiKey) {
+    return {};
+  }
+  const browserService = createBrowserUseCloudService({ apiKey: browserUseApiKey });
+  return createBrowserUseTools(browserService);
+}
 
 function createStreamingAgent(mode: AgentMode, projectPath?: string) {
   const effectivePath = projectPath || defaultRillProjectPath || ".";
+  const browserTools = getBrowserTools();
+  const hasBrowserTools = Object.keys(browserTools).length > 0;
+
+  // Add browser capabilities to system prompt if available
+  const browserPromptAddition = hasBrowserTools
+    ? `
+
+## Browser Automation
+You also have browser automation tools to fetch live data from websites:
+- **browser_run_task** - Run browser tasks with natural language (e.g., "Go to fred.stlouisfed.org and get the current federal funds rate")
+- **browser_list_skills** - List available pre-built browser automation skills
+- **browser_execute_skill** - Execute a saved skill with parameters
+
+Use browser tools when you need real-time data from external sources like:
+- Federal Reserve rates (fred.stlouisfed.org)
+- Stock prices and financial data
+- Government statistics
+- Any data not available in the local project`
+    : "";
 
   if (mode === "specialized") {
     // Approach A: 11 specialized Rill tools
     const rillService = createLocalRillService();
-    const tools = createRillTools(rillService, effectivePath);
+    const rillTools = createRillTools(rillService, effectivePath);
     return createAgent({
-      systemPrompt: SPECIALIZED_SYSTEM_PROMPT,
-      tools,
+      systemPrompt: SPECIALIZED_SYSTEM_PROMPT + browserPromptAddition,
+      tools: { ...rillTools, ...browserTools },
       maxSteps: 25,
     });
   }
@@ -151,10 +186,10 @@ function createStreamingAgent(mode: AgentMode, projectPath?: string) {
   const executionService = createLocalExecutionService({
     projectPath: effectivePath,
   });
-  const tools = createExecutionTools(executionService);
+  const executionTools = createExecutionTools(executionService);
   return createAgent({
-    systemPrompt: GENERAL_SYSTEM_PROMPT,
-    tools,
+    systemPrompt: GENERAL_SYSTEM_PROMPT + browserPromptAddition,
+    tools: { ...executionTools, ...browserTools },
     maxSteps: 25,
   });
 }

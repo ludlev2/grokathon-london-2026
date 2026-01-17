@@ -176,7 +176,7 @@ export function createBrowserUseTools(
       inputSchema: z.object({
         skillId: z.string().describe("The ID of the skill to execute"),
         parameters: z
-          .record(z.unknown())
+          .record(z.string(), z.unknown())
           .optional()
           .default({})
           .describe("Parameters to pass to the skill"),

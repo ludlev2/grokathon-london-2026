@@ -50,6 +50,26 @@ export type {
 } from "./services/execution.js";
 export { createLocalExecutionService } from "./services/execution-local.js";
 
+// ===========================================
+// Browser Use Cloud Tools
+// ===========================================
+// Browser automation through Browser Use Cloud API
+export { createBrowserUseTools } from "./tools/browser-use.js";
+export type {
+  BrowserUseService,
+  Task as BrowserTask,
+  TaskStatus as BrowserTaskStatus,
+  Skill as BrowserSkill,
+  CreateTaskRequest as BrowserCreateTaskRequest,
+  CreateTaskResponse as BrowserCreateTaskResponse,
+  ExecuteSkillRequest as BrowserExecuteSkillRequest,
+  ExecuteSkillResponse as BrowserExecuteSkillResponse,
+} from "./services/browser-use.js";
+export {
+  createBrowserUseCloudService,
+  type BrowserUseCloudConfig,
+} from "./services/browser-use-cloud.js";
+
 // Context management
 export { createContext, addMessage, getMessages } from "./context.js";
 

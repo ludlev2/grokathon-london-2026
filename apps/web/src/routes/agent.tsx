@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
-import { Bot, Send, User, Loader2, ChevronDown, ChevronUp, Wrench, Sparkles, Check, Terminal } from "lucide-react";
+import { Bot, Send, Loader2, ChevronDown, ChevronUp, Wrench, Sparkles, Check, Terminal } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -607,13 +607,8 @@ function AgentComponent() {
                   message.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                {message.role === "assistant" && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                    <Bot className="h-4 w-4" />
-                  </div>
-                )}
                 <div
-                  className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                  className={`max-w-[80%] px-4 py-2 ${
                     message.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-background border"
@@ -627,7 +622,7 @@ function AgentComponent() {
                       </span>
                     </div>
                   ) : message.role === "assistant" ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-table:w-full prose-table:border-collapse prose-table:my-4 prose-th:border prose-th:border-border prose-th:bg-muted prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-2">
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-table:w-full prose-table:border-collapse prose-table:my-4 prose-th:border prose-th:border-border prose-th:bg-muted prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-2">
                       <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
                     </div>
                   ) : (
@@ -701,11 +696,6 @@ function AgentComponent() {
                       </div>
                     )}
                 </div>
-                {message.role === "user" && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <User className="h-4 w-4" />
-                  </div>
-                )}
               </div>
             ))}
             <div ref={messagesEndRef} />
