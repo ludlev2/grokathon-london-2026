@@ -13,12 +13,7 @@ import type { BrowserUseService } from "../services/browser-use.js";
 const BROWSER_TASK_DESCRIPTION = `Run a browser automation task using natural language.
 The browser will execute your instructions and return the result.
 
-## Examples
-- "Go to fred.stlouisfed.org and get the current federal funds rate"
-- "Search Google for 'latest S&P 500 price' and extract the value"
-- "Navigate to finance.yahoo.com/quote/AAPL and get the current stock price"
-- "Go to the Bureau of Labor Statistics and find the latest unemployment rate"
-- "Visit weather.com and get the current temperature for New York"
+
 
 ## Capabilities
 - Navigate to websites

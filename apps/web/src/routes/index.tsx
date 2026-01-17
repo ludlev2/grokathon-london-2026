@@ -14,8 +14,8 @@ function HomeComponent() {
   return (
     <div className="container mx-auto max-w-3xl px-4 py-2">
       <AnimatedTitle />
-      <div className="grid gap-6">
-        <section className="rounded-lg border p-4">
+      <div className="mt-8 grid gap-6">
+        <section className="border p-4">
           <h2 className="mb-2 font-medium">API Health Check</h2>
           <div className="flex items-center gap-2">
             <div
