@@ -9,11 +9,29 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VolumesRouteImport } from './routes/volumes'
+import { Route as SnapshotsRouteImport } from './routes/snapshots'
+import { Route as SandboxRouteImport } from './routes/sandbox'
 import { Route as AgentRouteImport } from './routes/agent'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as IntegrationsIndexRouteImport } from './routes/integrations/index'
 import { Route as IntegrationsCreateRouteImport } from './routes/integrations/create'
 
+const VolumesRoute = VolumesRouteImport.update({
+  id: '/volumes',
+  path: '/volumes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SnapshotsRoute = SnapshotsRouteImport.update({
+  id: '/snapshots',
+  path: '/snapshots',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SandboxRoute = SandboxRouteImport.update({
+  id: '/sandbox',
+  path: '/sandbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AgentRoute = AgentRouteImport.update({
   id: '/agent',
   path: '/agent',
@@ -38,12 +56,18 @@ const IntegrationsCreateRoute = IntegrationsCreateRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agent': typeof AgentRoute
+  '/sandbox': typeof SandboxRoute
+  '/snapshots': typeof SnapshotsRoute
+  '/volumes': typeof VolumesRoute
   '/integrations/create': typeof IntegrationsCreateRoute
   '/integrations': typeof IntegrationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agent': typeof AgentRoute
+  '/sandbox': typeof SandboxRoute
+  '/snapshots': typeof SnapshotsRoute
+  '/volumes': typeof VolumesRoute
   '/integrations/create': typeof IntegrationsCreateRoute
   '/integrations': typeof IntegrationsIndexRoute
 }
@@ -51,26 +75,75 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agent': typeof AgentRoute
+  '/sandbox': typeof SandboxRoute
+  '/snapshots': typeof SnapshotsRoute
+  '/volumes': typeof VolumesRoute
   '/integrations/create': typeof IntegrationsCreateRoute
   '/integrations/': typeof IntegrationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/agent' | '/integrations/create' | '/integrations'
+  fullPaths:
+    | '/'
+    | '/agent'
+    | '/sandbox'
+    | '/snapshots'
+    | '/volumes'
+    | '/integrations/create'
+    | '/integrations'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/agent' | '/integrations/create' | '/integrations'
-  id: '__root__' | '/' | '/agent' | '/integrations/create' | '/integrations/'
+  to:
+    | '/'
+    | '/agent'
+    | '/sandbox'
+    | '/snapshots'
+    | '/volumes'
+    | '/integrations/create'
+    | '/integrations'
+  id:
+    | '__root__'
+    | '/'
+    | '/agent'
+    | '/sandbox'
+    | '/snapshots'
+    | '/volumes'
+    | '/integrations/create'
+    | '/integrations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgentRoute: typeof AgentRoute
+  SandboxRoute: typeof SandboxRoute
+  SnapshotsRoute: typeof SnapshotsRoute
+  VolumesRoute: typeof VolumesRoute
   IntegrationsCreateRoute: typeof IntegrationsCreateRoute
   IntegrationsIndexRoute: typeof IntegrationsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/volumes': {
+      id: '/volumes'
+      path: '/volumes'
+      fullPath: '/volumes'
+      preLoaderRoute: typeof VolumesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/snapshots': {
+      id: '/snapshots'
+      path: '/snapshots'
+      fullPath: '/snapshots'
+      preLoaderRoute: typeof SnapshotsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sandbox': {
+      id: '/sandbox'
+      path: '/sandbox'
+      fullPath: '/sandbox'
+      preLoaderRoute: typeof SandboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/agent': {
       id: '/agent'
       path: '/agent'
@@ -105,6 +178,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgentRoute: AgentRoute,
+  SandboxRoute: SandboxRoute,
+  SnapshotsRoute: SnapshotsRoute,
+  VolumesRoute: VolumesRoute,
   IntegrationsCreateRoute: IntegrationsCreateRoute,
   IntegrationsIndexRoute: IntegrationsIndexRoute,
 }

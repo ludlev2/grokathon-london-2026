@@ -1,7 +1,9 @@
 import { useLocation } from "@tanstack/react-router"
 import {
   Bot,
+  Camera,
   Database,
+  HardDrive,
   LayoutDashboard,
   Code2,
   BarChart3,
@@ -43,11 +45,6 @@ const mainNavItems = [
     icon: Plug,
   },
   {
-    title: "Sandbox",
-    url: "/sandbox",
-    icon: FlaskConical,
-  },
-  {
     title: "Datasets",
     url: "/datasets",
     icon: Database,
@@ -56,6 +53,24 @@ const mainNavItems = [
     title: "Queries",
     url: "/queries",
     icon: Code2,
+  },
+]
+
+const sandboxNavItems = [
+  {
+    title: "Sandbox",
+    url: "/sandbox",
+    icon: FlaskConical,
+  },
+  {
+    title: "Snapshots",
+    url: "/snapshots",
+    icon: Camera,
+  },
+  {
+    title: "Volumes",
+    url: "/volumes",
+    icon: HardDrive,
   },
 ]
 
@@ -105,6 +120,27 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === item.url}
+                    tooltip={item.title}
+                  >
+                    <a href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Sandbox</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {sandboxNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

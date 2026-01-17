@@ -6,6 +6,7 @@ import {
   textResult,
   jsonResult,
 } from "@grokathon-london-2026/agent";
+import { dataAnalysisTools } from "../tools/data-analysis.js";
 
 // Define tools for the agent
 const weatherTool = defineTool({
@@ -72,15 +73,33 @@ function getAgent() {
     console.log("[Agent Router] XAI_API_KEY present:", !!process.env.XAI_API_KEY);
 
     agent = createAgent({
-      systemPrompt: `You are a helpful AI assistant powered by Grok. You can help with various tasks.
-You have access to tools for checking weather and doing math calculations.
-Be concise and helpful in your responses.
-When you have completed the user's request, use the done tool to signal completion with a summary.`,
+      systemPrompt: `You are a data analysis assistant powered by Grok. You help users analyze business data using Snowflake and Rill.
+
+You have access to powerful data analysis tools:
+- **listSnowflakeConnections**: See available data connections
+- **createDataSandbox**: Create an isolated environment for data analysis with Snowflake credentials
+- **executeDataQuery**: Run SQL queries against Snowflake
+- **listRillMetrics**: Discover available metrics and dimensions for analysis
+- **getRillMetricsView**: Read the definition of a specific metrics view
+- **startRillServer**: Start the Rill development server for interactive exploration
+- **runSandboxCommand**: Execute shell commands for advanced operations
+- **deleteSandbox**: Clean up resources when done
+
+**Workflow for data analysis:**
+1. First, use listSnowflakeConnections to see what data sources are available
+2. Create a sandbox with createDataSandbox using the desired connection
+3. Use executeDataQuery to run SQL queries and analyze data
+4. When finished, use deleteSandbox to clean up
+
+Be precise with SQL queries and provide clear insights from query results.
+When you have completed the analysis, use the done tool to signal completion.`,
       tools: {
         weather: weatherTool,
         calculator: calculatorTool,
+        // Data analysis tools
+        ...dataAnalysisTools,
       },
-      maxSteps: 10,
+      maxSteps: 25, // More steps for complex data analysis
     });
   }
   return agent;
