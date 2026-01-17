@@ -157,24 +157,21 @@ Examples:
   });
 
   const queryMetricsTool = defineTool({
-    description: `Query a metrics view with aggregations, dimensions, and filters.
+    description: `Query a metrics view using Metrics SQL.
 Use this for analytical queries on defined metrics.
-This uses the metrics_view_aggregation resolver for optimized metric calculations.`,
+You can query the metrics view like a table, selecting dimensions and measures by name.
+Example: SELECT region, total_revenue FROM my_metrics_view WHERE country = 'US' LIMIT 100`,
     inputSchema: z.object({
       metricsView: z.string().describe("Name of the metrics view to query"),
       dimensions: z
         .array(z.string())
         .optional()
-        .describe("Dimension columns to group by"),
+        .describe("Dimension names to select"),
       measures: z
         .array(z.string())
         .optional()
-        .describe("Measure names to aggregate"),
+        .describe("Measure names to select"),
       where: z.string().optional().describe("SQL WHERE clause for filtering"),
-      timeRange: z
-        .string()
-        .optional()
-        .describe("Time range like 'P7D' (last 7 days) or 'P30D'"),
       limit: z.number().optional().default(100).describe("Max rows to return"),
       projectPath: z
         .string()
@@ -186,46 +183,41 @@ This uses the metrics_view_aggregation resolver for optimized metric calculation
       dimensions,
       measures,
       where,
-      timeRange,
       limit,
       projectPath,
     }) => {
       try {
         const path = getProjectPath(projectPath);
 
-        const properties: Record<string, string> = {
-          metrics_view: metricsView,
-        };
-
+        // Build Metrics SQL query
+        const selectParts: string[] = [];
         if (dimensions?.length) {
-          properties.dimensions = JSON.stringify(
-            dimensions.map((name) => ({ name }))
-          );
+          selectParts.push(...dimensions);
         }
         if (measures?.length) {
-          properties.measures = JSON.stringify(
-            measures.map((name) => ({ name }))
-          );
+          selectParts.push(...measures);
         }
+
+        if (selectParts.length === 0) {
+          return errorResult("At least one dimension or measure must be specified");
+        }
+
+        let sql = `SELECT ${selectParts.join(", ")} FROM ${metricsView}`;
         if (where) {
-          properties.where = where;
+          sql += ` WHERE ${where}`;
         }
-        if (timeRange) {
-          properties.time_range = timeRange;
-        }
-        if (limit) {
-          properties.limit = String(limit);
-        }
+        sql += ` LIMIT ${limit || 100}`;
 
         const result = await service.queryWithResolver(
           path,
-          "metrics_view_aggregation",
-          properties
+          "metrics_sql",
+          { sql }
         );
 
         return jsonResult({
           success: true,
           metricsView,
+          sql,
           rowCount: result.rowCount,
           columns: result.columns,
           rows: result.rows.slice(0, 100),

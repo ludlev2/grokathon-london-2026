@@ -44,8 +44,25 @@ export function createLocalRillService(): RillService {
 
   async function parseJsonOutput<T>(output: string): Promise<T> {
     try {
-      return JSON.parse(output) as T;
-    } catch {
+      // Strip any upgrade messages or other non-JSON prefix
+      let cleanOutput = output;
+      const jsonStart = output.indexOf('[');
+      const jsonObjStart = output.indexOf('{');
+
+      if (jsonStart === -1 && jsonObjStart === -1) {
+        throw new Error(`No JSON found in output`);
+      }
+
+      const startIdx = jsonStart === -1 ? jsonObjStart :
+                       jsonObjStart === -1 ? jsonStart :
+                       Math.min(jsonStart, jsonObjStart);
+
+      if (startIdx > 0) {
+        cleanOutput = output.slice(startIdx);
+      }
+
+      return JSON.parse(cleanOutput) as T;
+    } catch (e) {
       throw new Error(`Failed to parse Rill output: ${output.slice(0, 200)}`);
     }
   }
@@ -53,11 +70,15 @@ export function createLocalRillService(): RillService {
   return {
     async query(projectPath, sql) {
       const startTime = Date.now();
+      // Use single quotes to prevent shell interpretation of backticks
+      // Escape single quotes within SQL using '\''
+      const escapedSql = sql.replace(/'/g, "'\\''");
       const output = await runRillCommand(projectPath, [
         "query",
         ".",
+        "--local",
         "--sql",
-        `"${sql.replace(/"/g, '\\"')}"`,
+        `'${escapedSql}'`,
         "--format",
         "json",
       ]);
@@ -75,10 +96,11 @@ export function createLocalRillService(): RillService {
 
     async queryWithResolver(projectPath, resolver, properties) {
       const startTime = Date.now();
-      const args = ["query", ".", "--resolver", resolver, "--format", "json"];
+      const args = ["query", ".", "--local", "--resolver", resolver, "--format", "json"];
 
       for (const [key, value] of Object.entries(properties)) {
-        args.push("--properties", `${key}=${value}`);
+        // Use single quotes to prevent shell interpretation of {} and []
+        args.push("--properties", `'${key}=${value}'`);
       }
 
       const output = await runRillCommand(projectPath, args);

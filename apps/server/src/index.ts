@@ -158,10 +158,14 @@ function createStreamingAgent(mode: AgentMode, projectPath?: string) {
   const browserPromptAddition = hasBrowserTools
     ? `
 
-You can fetch live data from the web using browser_run_task when needed.
-Use ONE authoritative source per query - don't cross-reference multiple sites.
-After successfully fetching repeatable public data, create a skill for it using browser_create_skill.
-Before fetching, check browser_list_skills to see if a relevant skill already exists.`
+## Fetching Live Web Data
+
+You have access to pre-built browser skills that fetch live data (Fed rates, stock prices, etc).
+
+1. Call browser_list_skills to see available skills
+2. Use browser_execute_skill with the skill ID to fetch data
+
+ONLY use browser_execute_skill with existing skills. Do NOT use browser_run_task.`
     : "";
 
   if (mode === "specialized") {
