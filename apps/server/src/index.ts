@@ -160,8 +160,8 @@ function createStreamingAgent(mode: AgentMode, projectPath?: string) {
 
 You can fetch live data from the web using browser_run_task when needed.
 Use ONE authoritative source per query - don't cross-reference multiple sites.
-Before fetching, check browser_list_skills to see if a relevant skill already exists.
-After fetching repeatable data, ask the user if they want to save it as a skill. If yes, use browser_create_skill with waitForBuild=false (it runs in the background).`
+After successfully fetching repeatable public data, create a skill for it using browser_create_skill.
+Before fetching, check browser_list_skills to see if a relevant skill already exists.`
     : "";
 
   if (mode === "specialized") {

@@ -46,13 +46,15 @@ Use this to cancel a task that is taking too long or is no longer needed.`;
 const CREATE_SKILL_DESCRIPTION = `Create a reusable browser automation skill.
 Skills are saved automations that can be executed repeatedly with consistent results.
 
-IMPORTANT: Skill building takes several minutes. Use waitForBuild=false to create in the background.
-The skill will be available later via browser_list_skills and browser_execute_skill.
+Use this AFTER successfully fetching repeatable public data (rates, prices, statistics)
+to save it as a skill for future use. The skill will have a fixed input/output schema.
 
 Example goals:
 - "Get current federal funds rate from FRED"
 - "Get S&P 500 price from Yahoo Finance"
-- "Get latest unemployment rate from BLS"`;
+- "Get latest unemployment rate from BLS"
+
+The skill builds asynchronously and will be available for future use via browser_execute_skill.`;
 
 /**
  * Create browser automation tools for the agent.
