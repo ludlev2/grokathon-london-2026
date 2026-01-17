@@ -1,0 +1,25 @@
+{
+  "name": "@grokathon-london-2026/api",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@grokathon-london-2026/db": "workspace:*",
+    "@grokathon-london-2026/env": "workspace:*",
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@grokathon-london-2026/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
