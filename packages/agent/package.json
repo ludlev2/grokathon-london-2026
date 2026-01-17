@@ -1,5 +1,6 @@
 {
-  "name": "@grokathon-london-2026/api",
+  "name": "@grokathon-london-2026/agent",
+  "version": "0.0.1",
   "type": "module",
   "exports": {
     ".": {
@@ -9,21 +10,18 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
   "dependencies": {
-    "@grokathon-london-2026/agent": "workspace:*",
-    "@grokathon-london-2026/db": "workspace:*",
+    "@ai-sdk/xai": "^3.0.26",
     "@grokathon-london-2026/env": "workspace:*",
-    "@trpc/client": "catalog:",
-    "@trpc/server": "catalog:",
-    "dotenv": "catalog:",
-    "drizzle-orm": "^0.45.1",
-    "hono": "^4.8.2",
-    "snowflake-sdk": "^2.3.3",
+    "ai": "6.0.0-beta.169",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@grokathon-london-2026/config": "workspace:*",
+    "@types/node": "catalog:",
     "typescript": "catalog:"
   }
 }

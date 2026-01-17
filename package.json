@@ -27,6 +27,7 @@
   "devDependencies": {
     "@grokathon-london-2026/config": "workspace:*",
     "@types/node": "catalog:",
+    "tsx": "^4.19.2",
     "turbo": "^2.6.3",
     "typescript": "catalog:"
   },

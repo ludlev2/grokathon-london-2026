@@ -1,5 +1,6 @@
 import { useLocation } from "@tanstack/react-router"
 import {
+  Bot,
   Database,
   LayoutDashboard,
   Code2,
@@ -8,6 +9,7 @@ import {
   Settings,
   FlaskConical,
   FolderOpen,
+  Plug,
 } from "lucide-react"
 
 import {
@@ -29,6 +31,16 @@ const mainNavItems = [
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Agent",
+    url: "/agent",
+    icon: Bot,
+  },
+  {
+    title: "Integrations",
+    url: "/integrations",
+    icon: Plug,
   },
   {
     title: "Sandbox",
