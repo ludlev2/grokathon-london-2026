@@ -1,5 +1,5 @@
 import { useLocation } from "@tanstack/react-router"
-import { Bot, FlaskConical, LayoutDashboard, Plug } from "lucide-react"
+import { Bot, Plug } from "lucide-react"
 
 import {
   Sidebar,
@@ -15,11 +15,7 @@ import {
 } from "@/components/ui/sidebar"
 
 const navItems = [
-  {
-    title: "Home",
-    url: "/",
-    icon: LayoutDashboard,
-  },
+
   {
     title: "Agent",
     url: "/agent",
@@ -42,8 +38,8 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <a href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <FlaskConical className="size-4" />
+                <div className="flex aspect-square size-8 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-lg">
+                  x
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold">xAI Data Analyst</span>

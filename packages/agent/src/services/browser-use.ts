@@ -71,6 +71,18 @@ export interface ExecuteSkillResponse {
   error?: string;
 }
 
+export interface CreateSkillRequest {
+  /** High-level objective (e.g., "Get current federal funds rate") */
+  goal: string;
+  /** Detailed instructions for the agent */
+  agentPrompt: string;
+}
+
+export interface CreateSkillResponse {
+  id: string;
+  status: Skill["status"];
+}
+
 export interface BrowserUseService {
   /**
    * Create and run a new browser automation task
@@ -109,4 +121,17 @@ export interface BrowserUseService {
    * Execute a skill with parameters
    */
   executeSkill(request: ExecuteSkillRequest): Promise<ExecuteSkillResponse>;
+
+  /**
+   * Create a new skill from a goal and agent prompt
+   */
+  createSkill(request: CreateSkillRequest): Promise<CreateSkillResponse>;
+
+  /**
+   * Wait for a skill to finish building
+   */
+  waitForSkill(
+    skillId: string,
+    options?: { timeoutMs?: number; pollIntervalMs?: number }
+  ): Promise<Skill>;
 }

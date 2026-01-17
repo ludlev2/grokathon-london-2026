@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
-import { Bot, Send, Loader2, ChevronDown, ChevronUp, Wrench, Sparkles, Check, Terminal } from "lucide-react";
+import { Bot, Send, Loader2, ChevronDown, ChevronUp, Wrench, Check, Terminal } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { AgentTitle } from "@/components/agent-title";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -527,11 +528,8 @@ function AgentComponent() {
       <div className="mb-4 border-b pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary" />
-              AI Data Analyst
-            </h1>
-            <p className="text-sm text-muted-foreground">
+            <AgentTitle />
+            <p className="mt-2 text-sm text-muted-foreground">
               Chat with the Grok-powered data analyst. Ask questions about your data.
             </p>
           </div>

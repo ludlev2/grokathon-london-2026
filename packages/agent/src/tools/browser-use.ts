@@ -43,6 +43,17 @@ Use browser_list_skills first to see available skills and their parameters.`;
 const STOP_TASK_DESCRIPTION = `Stop a running browser task.
 Use this to cancel a task that is taking too long or is no longer needed.`;
 
+const CREATE_SKILL_DESCRIPTION = `Create a reusable browser automation skill.
+Skills are saved automations that can be executed repeatedly with consistent results.
+
+IMPORTANT: Skill building takes several minutes. Use waitForBuild=false to create in the background.
+The skill will be available later via browser_list_skills and browser_execute_skill.
+
+Example goals:
+- "Get current federal funds rate from FRED"
+- "Get S&P 500 price from Yahoo Finance"
+- "Get latest unemployment rate from BLS"`;
+
 /**
  * Create browser automation tools for the agent.
  */
@@ -200,6 +211,69 @@ export function createBrowserUseTools(
         try {
           await service.stopTask(taskId);
           return jsonResult({ success: true, message: `Task ${taskId} stopped` });
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Unknown error";
+          return errorResult(message);
+        }
+      },
+    }),
+
+    browser_create_skill: defineTool({
+      description: CREATE_SKILL_DESCRIPTION,
+      inputSchema: z.object({
+        goal: z
+          .string()
+          .min(1)
+          .max(500)
+          .describe(
+            "High-level objective (e.g., 'Get current federal funds rate from FRED')"
+          ),
+        agentPrompt: z
+          .string()
+          .min(1)
+          .max(2000)
+          .describe(
+            "Detailed step-by-step instructions for the browser agent to follow"
+          ),
+        waitForBuild: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe("Whether to wait for the skill to finish building (default: true)"),
+      }),
+      async execute({ goal, agentPrompt, waitForBuild }) {
+        try {
+          const createResult = await service.createSkill({ goal, agentPrompt });
+
+          if (!waitForBuild) {
+            return jsonResult({
+              skillId: createResult.id,
+              status: createResult.status,
+              message:
+                "Skill creation started. Use browser_list_skills to check when it's ready.",
+            });
+          }
+
+          // Wait for skill to build
+          const skill = await service.waitForSkill(createResult.id, {
+            timeoutMs: 300000, // 5 minutes
+            pollIntervalMs: 2000,
+          });
+
+          if (skill.status === "failed") {
+            return errorResult("Skill build failed");
+          }
+
+          return jsonResult({
+            skillId: skill.id,
+            name: skill.name,
+            description: skill.description,
+            status: skill.status,
+            inputSchema: skill.inputSchema,
+            outputSchema: skill.outputSchema,
+            message: "Skill created successfully. Use browser_execute_skill to run it.",
+          });
         } catch (error) {
           const message =
             error instanceof Error ? error.message : "Unknown error";

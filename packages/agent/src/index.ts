@@ -64,6 +64,8 @@ export type {
   CreateTaskResponse as BrowserCreateTaskResponse,
   ExecuteSkillRequest as BrowserExecuteSkillRequest,
   ExecuteSkillResponse as BrowserExecuteSkillResponse,
+  CreateSkillRequest as BrowserCreateSkillRequest,
+  CreateSkillResponse as BrowserCreateSkillResponse,
 } from "./services/browser-use.js";
 export {
   createBrowserUseCloudService,

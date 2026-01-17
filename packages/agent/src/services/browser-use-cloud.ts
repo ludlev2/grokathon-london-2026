@@ -12,6 +12,8 @@ import type {
   Skill,
   ExecuteSkillRequest,
   ExecuteSkillResponse,
+  CreateSkillRequest,
+  CreateSkillResponse,
 } from "./browser-use.js";
 
 const API_BASE_URL = "https://api.browser-use.com/api/v2";
@@ -129,6 +131,36 @@ export function createBrowserUseCloudService(
           error: error instanceof Error ? error.message : "Unknown error",
         };
       }
+    },
+
+    async createSkill(req: CreateSkillRequest): Promise<CreateSkillResponse> {
+      const result = await request<{ id: string; status: Skill["status"] }>(
+        "POST",
+        "/skills",
+        { goal: req.goal, agentPrompt: req.agentPrompt }
+      );
+      return result;
+    },
+
+    async waitForSkill(
+      skillId: string,
+      options?: { timeoutMs?: number; pollIntervalMs?: number }
+    ): Promise<Skill> {
+      const timeoutMs = options?.timeoutMs ?? 300000; // 5 minutes default
+      const pollIntervalMs = options?.pollIntervalMs ?? 2000; // 2 seconds default
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < timeoutMs) {
+        const skill = await this.getSkill(skillId);
+
+        if (skill.status === "finished" || skill.status === "failed") {
+          return skill;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      }
+
+      throw new Error(`Skill ${skillId} build timed out after ${timeoutMs}ms`);
     },
   };
 }

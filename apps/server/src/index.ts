@@ -158,7 +158,10 @@ function createStreamingAgent(mode: AgentMode, projectPath?: string) {
   const browserPromptAddition = hasBrowserTools
     ? `
 
-You can fetch live data from the web using browser_run_task when needed.`
+You can fetch live data from the web using browser_run_task when needed.
+Use ONE authoritative source per query - don't cross-reference multiple sites.
+Before fetching, check browser_list_skills to see if a relevant skill already exists.
+After fetching repeatable data, ask the user if they want to save it as a skill. If yes, use browser_create_skill with waitForBuild=false (it runs in the background).`
     : "";
 
   if (mode === "specialized") {
@@ -246,7 +249,7 @@ serve(
     port: PORT,
   },
   (info) => {
-    const browserToolCount = browserUseApiKey ? 5 : 0;
+    const browserToolCount = browserUseApiKey ? 6 : 0;
     console.log(`\n========================================`);
     console.log(`  Server running on port ${info.port}`);
     console.log(`  URL: http://localhost:${info.port}`);
