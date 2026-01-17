@@ -9,16 +9,16 @@ import { Textarea } from "@/components/ui/textarea";
 // Mode configuration
 type AgentMode = "specialized" | "general";
 
+const SERVER_URL = "http://localhost:3000";
+
 const MODE_CONFIG = {
   specialized: {
-    port: 3000,
     label: "Specialized",
     description: "11 Rill-specific tools",
     color: "bg-blue-500",
     icon: Wrench,
   },
   general: {
-    port: 3002,
     label: "General",
     description: "2 tools (bash + SQL)",
     color: "bg-green-500",
@@ -276,9 +276,6 @@ function AgentComponent() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const userHasScrolledUp = useRef(false);
 
-  // Get server URL based on mode
-  const serverUrl = `http://localhost:${config.port}`;
-
   const toggleMode = () => {
     const newMode = mode === "general" ? "specialized" : "general";
     void navigate({ search: { mode: newMode } });
@@ -352,12 +349,12 @@ function AgentComponent() {
     try {
       abortControllerRef.current = new AbortController();
 
-      const response = await fetch(`${serverUrl}/api/chat/stream`, {
+      const response = await fetch(`${SERVER_URL}/api/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: messageText }),
+        body: JSON.stringify({ message: messageText, mode }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -411,7 +408,7 @@ function AgentComponent() {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [serverUrl]);
+  }, [mode]);
 
   const handleStreamEvent = (messageId: string, event: StreamEvent) => {
     switch (event.type) {
@@ -551,9 +548,6 @@ function AgentComponent() {
               <div className="text-sm font-medium">{config.label}</div>
               <div className="text-[10px] text-muted-foreground">{config.description}</div>
             </div>
-            <span className="text-xs text-muted-foreground ml-2">
-              :{config.port}
-            </span>
           </button>
         </div>
       </div>
@@ -632,7 +626,7 @@ function AgentComponent() {
                       </span>
                     </div>
                   ) : message.role === "assistant" ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-table:w-full prose-table:border-collapse prose-table:my-4 prose-th:border prose-th:border-border prose-th:bg-muted prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-2">
                       <Markdown>{message.content}</Markdown>
                     </div>
                   ) : (

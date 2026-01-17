@@ -13,8 +13,6 @@
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",
-    "dev:specialized": "pnpm --filter server dev:specialized",
-    "dev:general": "pnpm --filter server dev:general",
     "db:push": "turbo -F @grokathon-london-2026/db db:push",
     "db:studio": "turbo -F @grokathon-london-2026/db db:studio",
     "db:generate": "turbo -F @grokathon-london-2026/db db:generate",
