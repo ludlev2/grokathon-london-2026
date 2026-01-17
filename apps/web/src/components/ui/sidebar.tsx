@@ -8,12 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -526,18 +521,17 @@ function SidebarMenuButton({
 	isActive = false,
 	variant = "default",
 	size = "default",
-	tooltip,
+	tooltip: _tooltip,
 	className,
 	...props
 }: React.ComponentProps<"button"> & {
 	asChild?: boolean;
 	isActive?: boolean;
-	tooltip?: string | React.ComponentProps<typeof TooltipContent>;
+	tooltip?: string | Record<string, unknown>;
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
 	const Comp = asChild ? Slot : "button";
-	const { isMobile, state, isHoverExpanded } = useSidebar();
 
-	const button = (
+	return (
 		<Comp
 			data-slot="sidebar-menu-button"
 			data-size={size}
@@ -546,9 +540,6 @@ function SidebarMenuButton({
 			{...props}
 		/>
 	);
-
-	// Don't wrap in tooltip - just return the button
-	return button;
 }
 
 function SidebarMenuAction({

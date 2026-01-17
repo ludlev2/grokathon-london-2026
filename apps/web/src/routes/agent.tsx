@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Bot, Send, User, Loader2, ChevronDown, ChevronUp, Wrench, Sparkles, Check } from "lucide-react";
 import { env } from "@grokathon-london-2026/env/web";
+import Markdown from "react-markdown";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -234,7 +235,9 @@ function AgentComponent() {
   const [currentStep, setCurrentStep] = useState(0);
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const userHasScrolledUp = useRef(false);
 
   const toggleExpanded = (messageId: string) => {
     setExpandedMessages((prev) => {
@@ -248,17 +251,37 @@ function AgentComponent() {
     });
   };
 
-  const scrollToBottom = () => {
+  const isAtBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    const threshold = 100;
+    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    // Only mark as scrolled up - never automatically re-enable during streaming
+    // Auto-scroll only resets when a new message is sent
+    if (!isAtBottom()) {
+      userHasScrolledUp.current = true;
+    }
+  }, [isAtBottom]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // Only auto-scroll if user hasn't manually scrolled up
+    if (!userHasScrolledUp.current) {
+      scrollToBottom();
+    }
+  }, [messages, scrollToBottom]);
 
   const streamChat = useCallback(async (messageText: string) => {
     setIsStreaming(true);
     setCurrentStep(0);
+    // Reset scroll behavior for new conversation
+    userHasScrolledUp.current = false;
 
     const assistantMessageId = crypto.randomUUID();
 
@@ -465,7 +488,11 @@ function AgentComponent() {
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto rounded-lg border bg-muted/30 p-4">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto rounded-lg border bg-muted/30 p-4"
+      >
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center max-w-md">
@@ -527,6 +554,10 @@ function AgentComponent() {
                       <span className="text-sm text-muted-foreground">
                         {currentStep > 0 ? `Step ${currentStep}...` : "Thinking..."}
                       </span>
+                    </div>
+                  ) : message.role === "assistant" ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                      <Markdown>{message.content}</Markdown>
                     </div>
                   ) : (
                     <p className="whitespace-pre-wrap">{message.content}</p>
