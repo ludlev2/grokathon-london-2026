@@ -20,7 +20,10 @@ import {
   createBrowserUseCloudService,
   // Types
   type ToolDefinition,
+  type AgentContext,
+  type Agent,
 } from "@grokathon-london-2026/agent";
+import { randomUUID } from "crypto";
 
 const app = new Hono();
 
@@ -149,6 +152,35 @@ function getBrowserTools(): Record<string, ToolDefinition> {
   return createBrowserUseTools(browserService);
 }
 
+// ===========================================
+// SESSION MANAGEMENT
+// ===========================================
+
+interface Session {
+  id: string;
+  agent: Agent;
+  context: AgentContext;
+  mode: AgentMode;
+  projectPath: string;
+  createdAt: number;
+  lastAccessedAt: number;
+}
+
+// In-memory session storage (consider Redis for production)
+const sessions = new Map<string, Session>();
+
+// Clean up old sessions (older than 1 hour)
+const SESSION_TTL_MS = 60 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of sessions.entries()) {
+    if (now - session.lastAccessedAt > SESSION_TTL_MS) {
+      sessions.delete(id);
+      console.log(`[Session] Expired: ${id}`);
+    }
+  }
+}, 5 * 60 * 1000); // Check every 5 minutes
+
 function createStreamingAgent(mode: AgentMode, projectPath?: string) {
   const effectivePath = projectPath || defaultRillProjectPath || ".";
   const browserTools = getBrowserTools();
@@ -197,21 +229,63 @@ app.post("/api/chat/stream", async (c) => {
     message: string;
     mode?: AgentMode;
     projectPath?: string;
+    sessionId?: string;
   }>();
-  const { message, mode = "general", projectPath } = body;
+  const { message, mode = "general", projectPath, sessionId } = body;
 
   if (!message || typeof message !== "string") {
     return c.json({ error: "Message is required" }, 400);
   }
 
-  console.log("[Stream] Starting query:", message);
+  console.log("[Stream] Message:", message.slice(0, 100));
   console.log("[Stream] Mode:", mode);
+  console.log("[Stream] Session:", sessionId || "new");
 
   return streamSSE(c, async (stream) => {
     try {
-      const agent = createStreamingAgent(mode, projectPath);
+      let session: Session;
+      let isNewSession = false;
 
-      for await (const event of agent.queryStream(message)) {
+      if (sessionId && sessions.has(sessionId)) {
+        // Continue existing session
+        session = sessions.get(sessionId)!;
+        session.lastAccessedAt = Date.now();
+        console.log(`[Session] Continuing: ${sessionId}`);
+      } else {
+        // Create new session
+        const effectivePath = projectPath || defaultRillProjectPath || ".";
+        const agent = createStreamingAgent(mode, effectivePath);
+        const newSessionId = randomUUID();
+
+        session = {
+          id: newSessionId,
+          agent,
+          context: agent.createNewContext(),
+          mode,
+          projectPath: effectivePath,
+          createdAt: Date.now(),
+          lastAccessedAt: Date.now(),
+        };
+
+        sessions.set(newSessionId, session);
+        isNewSession = true;
+        console.log(`[Session] Created: ${newSessionId}`);
+      }
+
+      // Send session info first
+      await stream.writeSSE({
+        data: JSON.stringify({
+          type: "session",
+          sessionId: session.id,
+          isNew: isNewSession,
+        }),
+        event: "session",
+      });
+
+      // Stream the response - always use continueConversationStream to maintain session context
+      const eventStream = session.agent.continueConversationStream(session.context, message);
+
+      for await (const event of eventStream) {
         await stream.writeSSE({
           data: JSON.stringify(event),
           event: event.type,

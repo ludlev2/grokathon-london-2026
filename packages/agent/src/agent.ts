@@ -263,6 +263,107 @@ export function createAgent(config: AgentConfig) {
         messages: getMessages(context),
       };
     },
+
+    /**
+     * Continue an existing conversation with streaming events.
+     * Use this to maintain conversation context across multiple turns.
+     */
+    async *continueConversationStream(
+      context: AgentContext,
+      prompt: string
+    ): AsyncGenerator<AgentEvent> {
+      // Add new user message
+      addMessage(context, { role: "user", content: prompt });
+
+      try {
+        trimEphemeralMessages(context, allTools);
+        await maybeCompactContext(context, config);
+
+        const remainingSteps = Math.max(1, maxSteps - context.stepCount);
+
+        const result = streamText({
+          model,
+          system: config.systemPrompt,
+          messages: getMessages(context),
+          tools: sdkTools,
+          stopWhen: stepCountIs(remainingSteps),
+        });
+
+        let currentStep = 0;
+        let accumulatedText = "";
+
+        // Stream events in real-time
+        for await (const chunk of result.fullStream) {
+          switch (chunk.type) {
+            case "tool-call":
+              yield {
+                type: "tool_call",
+                toolName: chunk.toolName,
+                args: chunk.input,
+              };
+              break;
+
+            case "tool-result":
+              yield {
+                type: "tool_result",
+                toolName: chunk.toolName,
+                result: { type: "text", content: String(chunk.output) },
+              };
+              currentStep++;
+              yield { type: "step_complete", stepNumber: currentStep };
+              break;
+
+            case "text-delta":
+              accumulatedText += chunk.text;
+              yield { type: "text_delta", delta: chunk.text };
+              break;
+
+            case "reasoning-delta":
+              yield { type: "text_delta", delta: chunk.text };
+              accumulatedText += chunk.text;
+              break;
+
+            case "error":
+              throw new Error(String(chunk.error));
+          }
+        }
+
+        // Get the final response for context management
+        const response = await result.response;
+
+        // Add all response messages to context
+        for (const msg of response.messages) {
+          addMessage(context, msg);
+        }
+
+        context.stepCount += currentStep;
+
+        // Get final text if not accumulated during streaming
+        if (!accumulatedText) {
+          const finalText = await result.text;
+          const reasoningText = await result.reasoningText;
+          accumulatedText = finalText || reasoningText || "";
+        }
+
+        yield {
+          type: "done",
+          result: accumulatedText || `Completed in ${context.stepCount} steps`,
+        };
+      } catch (error) {
+        if (error instanceof TaskComplete) {
+          yield { type: "done", result: error.result };
+        } else {
+          throw error;
+        }
+      }
+    },
+
+    /**
+     * Create a new context for a conversation session
+     */
+    createNewContext(): AgentContext {
+      return createContext();
+    },
   };
 }
 

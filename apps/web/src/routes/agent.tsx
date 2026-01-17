@@ -254,12 +254,15 @@ type Message = {
 
 // Stream event types from the server
 type StreamEvent =
+  | { type: "session"; sessionId: string; isNew: boolean }
   | { type: "step_start"; step: number }
   | { type: "tool_call"; toolName: string; args: unknown }
   | { type: "tool_result"; toolName: string; result: { type: string; content: string } }
   | { type: "text_delta"; delta: string }
   | { type: "step_finish"; step: number; finishReason?: string }
+  | { type: "step_complete"; stepNumber: number }
   | { type: "finish"; text: string; steps: number }
+  | { type: "done"; result: string }
   | { type: "error"; error: string };
 
 function AgentComponent() {
@@ -273,6 +276,7 @@ function AgentComponent() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -281,8 +285,9 @@ function AgentComponent() {
   const toggleMode = () => {
     const newMode = mode === "general" ? "specialized" : "general";
     void navigate({ search: { mode: newMode } });
-    // Clear messages when switching modes
+    // Clear messages and session when switching modes
     setMessages([]);
+    setSessionId(null);
   };
 
   const toggleExpanded = (messageId: string) => {
@@ -356,7 +361,7 @@ function AgentComponent() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: messageText, mode }),
+        body: JSON.stringify({ message: messageText, mode, sessionId }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -410,12 +415,21 @@ function AgentComponent() {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [mode]);
+  }, [mode, sessionId]);
 
   const handleStreamEvent = (messageId: string, event: StreamEvent) => {
     switch (event.type) {
+      case "session":
+        // Store the session ID for conversation continuity
+        setSessionId(event.sessionId);
+        break;
+
       case "step_start":
         setCurrentStep(event.step);
+        break;
+
+      case "step_complete":
+        setCurrentStep(event.stepNumber);
         break;
 
       case "tool_call":
@@ -468,6 +482,20 @@ function AgentComponent() {
                   ...msg,
                   content: event.text || msg.content,
                   steps: event.steps,
+                  isStreaming: false,
+                }
+              : msg
+          )
+        );
+        break;
+
+      case "done":
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  content: event.result || msg.content,
                   isStreaming: false,
                 }
               : msg
