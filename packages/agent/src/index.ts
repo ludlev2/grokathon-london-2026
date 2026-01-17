@@ -29,12 +29,26 @@ export {
   type SnowflakeService,
 } from "./tools/snowflake.js";
 
-// Rill tools
+// ===========================================
+// APPROACH A: Specialized Tools (11 tools)
+// ===========================================
+// The traditional approach with specialized Rill tools
 export { createRillTools, type RillService } from "./tools/rill.js";
-
-// Rill service implementations
 export { createLocalRillService } from "./services/rill-local.js";
-export { createMockRillService } from "./services/rill-mock.js";
+
+// ===========================================
+// APPROACH B: General Tools (2 tools)
+// ===========================================
+// The Vercel "trust the model" approach with just bash + SQL
+export { createExecutionTools } from "./tools/execution.js";
+export type {
+  ExecutionService,
+  BashResult,
+  BashOptions,
+  SQLResult,
+  SQLOptions,
+} from "./services/execution.js";
+export { createLocalExecutionService } from "./services/execution-local.js";
 
 // Context management
 export { createContext, addMessage, getMessages } from "./context.js";

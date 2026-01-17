@@ -2,13 +2,30 @@ import { z } from "zod";
 import { publicProcedure, router } from "../index";
 import {
   createAgent,
+  // Approach A: Specialized (11 tools)
   createRillTools,
   createLocalRillService,
-  createMockRillService,
+  // Approach B: General (2 tools)
+  createExecutionTools,
+  createLocalExecutionService,
 } from "@grokathon-london-2026/agent";
 
-// Data Analyst System Prompt
-const DATA_ANALYST_SYSTEM_PROMPT = `You are an expert Data Analyst AI assistant powered by Grok. Your role is to help users explore, analyze, and understand their data using Rill Data.
+// ===========================================
+// MODE SELECTION
+// ===========================================
+// Set AGENT_MODE=specialized for 11-tool approach
+// Set AGENT_MODE=general for 2-tool approach (default)
+type AgentMode = "specialized" | "general";
+const AGENT_MODE: AgentMode =
+  (process.env.AGENT_MODE as AgentMode) || "general";
+
+console.log(`[Agent] Mode: ${AGENT_MODE.toUpperCase()}`);
+
+// ===========================================
+// SYSTEM PROMPTS
+// ===========================================
+
+const SPECIALIZED_SYSTEM_PROMPT = `You are an expert Data Analyst AI assistant powered by Grok. Your role is to help users explore, analyze, and understand their data using Rill Data.
 
 ## Your Capabilities
 You have access to tools that let you:
@@ -55,50 +72,124 @@ When analyzing data, follow this systematic approach:
 
 Remember: Your goal is to help users gain actionable insights from their data. Focus on telling the story the data reveals.`;
 
-// Configuration for the Rill project path
-// Set USE_REAL_RILL=true and RILL_PROJECT_PATH to use real Rill CLI
-const USE_REAL_RILL = process.env.USE_REAL_RILL === "true";
-let defaultRillProjectPath: string | undefined = process.env.RILL_PROJECT_PATH || "/mock/ecommerce-analytics";
+const GENERAL_SYSTEM_PROMPT = `You are an expert Data Analyst AI assistant. You have two tools:
 
-// Create Rill service - use local CLI if configured, otherwise mock
-const rillService = USE_REAL_RILL ? createLocalRillService() : createMockRillService();
+1. **execute_bash** - Explore the Rill project filesystem
+2. **execute_sql** - Query data via DuckDB
 
-console.log(`[Agent] Using ${USE_REAL_RILL ? "REAL Rill CLI" : "Mock Rill Service"}`);
+## Rill Project Structure
+- sources/   - Data source definitions (YAML)
+- models/    - SQL transformations (*.sql)
+- metrics/   - Metrics views with dimensions/measures (YAML)
+- dashboards/ - Dashboard configs (YAML)
+- rill.yaml  - Project configuration
+
+## Workflow
+1. Start by exploring: \`ls -la\` to see project structure
+2. Read metrics YAML files to understand available data: \`cat metrics/*.yaml\`
+3. Understand models by reading SQL files: \`cat models/*.sql\`
+4. Translate measure expressions to SQL queries
+5. Query and analyze data
+
+## Translating Metrics to SQL
+
+When you see in a metrics YAML:
+\`\`\`yaml
+table: orders_enriched
+dimensions:
+  - name: region
+    column: customer_region
+measures:
+  - name: total_revenue
+    expression: SUM(amount)
+\`\`\`
+
+Write SQL as:
+\`\`\`sql
+SELECT
+  customer_region as region,
+  SUM(amount) as total_revenue
+FROM orders_enriched
+GROUP BY customer_region
+ORDER BY total_revenue DESC
+\`\`\`
+
+## Best Practices
+- Always explore the project first to understand the data
+- Read metrics YAML to see predefined dimensions and measures
+- Use LIMIT for initial queries to preview data
+- Explain your analysis approach clearly
+- Present findings with context (comparisons, trends)
+- Ask clarifying questions if the goal is unclear
+
+## Query Guidelines
+- Write clean, readable SQL with meaningful aliases
+- Use appropriate aggregations (SUM, AVG, COUNT, etc.)
+- Always include LIMIT to prevent overwhelming results
+- Use CTEs (WITH clauses) for complex multi-step queries
+
+Remember: Your goal is to help users gain actionable insights from their data.`;
+
+// ===========================================
+// AGENT CONFIGURATION
+// ===========================================
+
+let defaultRillProjectPath: string | undefined =
+  process.env.RILL_PROJECT_PATH || ".";
+
 console.log(`[Agent] Default project path: ${defaultRillProjectPath}`);
 
-// Lazy agent creation to ensure env vars are loaded
+// Lazy agent creation
 let agent: ReturnType<typeof createAgent> | null = null;
 
 function getAgent(projectPath?: string) {
-  // Recreate agent if project path changes
-  const effectivePath = projectPath || defaultRillProjectPath;
+  const effectivePath = projectPath || defaultRillProjectPath || ".";
 
-  if (!agent) {
+  if (!agent || projectPath) {
     console.log("[Agent Router] Creating agent instance");
-    console.log("[Agent Router] XAI_API_KEY present:", !!process.env.XAI_API_KEY);
-    console.log("[Agent Router] Rill project path:", effectivePath || "not set");
+    console.log("[Agent Router] Mode:", AGENT_MODE);
+    console.log("[Agent Router] Project path:", effectivePath);
 
-    const rillTools = createRillTools(rillService, effectivePath);
+    let tools;
+    let systemPrompt;
+
+    if (AGENT_MODE === "specialized") {
+      // Approach A: 11 specialized Rill tools
+      const rillService = createLocalRillService();
+      tools = createRillTools(rillService, effectivePath);
+      systemPrompt = SPECIALIZED_SYSTEM_PROMPT;
+      console.log("[Agent Router] Using SPECIALIZED tools (11 tools)");
+    } else {
+      // Approach B: 2 general tools
+      const executionService = createLocalExecutionService({
+        projectPath: effectivePath,
+      });
+      tools = createExecutionTools(executionService);
+      systemPrompt = GENERAL_SYSTEM_PROMPT;
+      console.log("[Agent Router] Using GENERAL tools (2 tools)");
+    }
 
     agent = createAgent({
-      systemPrompt: DATA_ANALYST_SYSTEM_PROMPT,
-      tools: rillTools,
-      maxSteps: 25, // Data analysis often requires multiple queries
+      systemPrompt,
+      tools,
+      maxSteps: 25,
     });
   }
   return agent;
 }
 
-// Helper to reset the agent (useful when project path changes)
 export function resetAgent() {
   agent = null;
 }
 
-// Helper to set the default project path
 export function setDefaultRillProjectPath(path: string) {
   defaultRillProjectPath = path;
-  agent = null; // Reset agent to pick up new path
+  agent = null;
 }
+
+// ===========================================
+// TRPC ROUTER
+// ===========================================
 
 export const agentRouter = router({
   chat: publicProcedure
@@ -110,25 +201,43 @@ export const agentRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
-        console.log("[Agent Router] Starting query:", input.message);
-        console.log("[Agent Router] XAI_API_KEY present:", !!process.env.XAI_API_KEY);
+        console.log("[Agent Router] Query:", input.message);
+        console.log("[Agent Router] Mode:", AGENT_MODE);
 
         const result = await getAgent(input.projectPath).query(input.message);
 
-        console.log("[Agent Router] Query complete:", {
+        console.log("[Agent Router] Complete:", {
           textLength: result.text?.length,
           steps: result.steps,
         });
 
-        // Get detailed step information from messages
-        const toolCalls: Array<{ toolName: string; args: unknown; toolCallId: string }> = [];
-        const toolResults: Array<{ toolName: string; result: unknown; toolCallId: string }> = [];
+        // Extract tool calls and results from messages
+        const toolCalls: Array<{
+          toolName: string;
+          args: unknown;
+          toolCallId: string;
+        }> = [];
+        const toolResults: Array<{
+          toolName: string;
+          result: unknown;
+          toolCallId: string;
+        }> = [];
 
         for (const msg of result.messages) {
           if (msg.role === "assistant" && Array.isArray(msg.content)) {
             for (const part of msg.content) {
-              if (typeof part === "object" && part !== null && "type" in part && part.type === "tool-call") {
-                const toolPart = part as { type: "tool-call"; toolCallId: string; toolName: string; input: unknown };
+              if (
+                typeof part === "object" &&
+                part !== null &&
+                "type" in part &&
+                part.type === "tool-call"
+              ) {
+                const toolPart = part as {
+                  type: "tool-call";
+                  toolCallId: string;
+                  toolName: string;
+                  input: unknown;
+                };
                 toolCalls.push({
                   toolName: toolPart.toolName,
                   args: toolPart.input,
@@ -139,8 +248,18 @@ export const agentRouter = router({
           }
           if (msg.role === "tool" && Array.isArray(msg.content)) {
             for (const part of msg.content) {
-              if (typeof part === "object" && part !== null && "type" in part && part.type === "tool-result") {
-                const toolPart = part as { type: "tool-result"; toolCallId: string; toolName: string; output: unknown };
+              if (
+                typeof part === "object" &&
+                part !== null &&
+                "type" in part &&
+                part.type === "tool-result"
+              ) {
+                const toolPart = part as {
+                  type: "tool-result";
+                  toolCallId: string;
+                  toolName: string;
+                  output: unknown;
+                };
                 toolResults.push({
                   toolName: toolPart.toolName,
                   result: toolPart.output,
@@ -156,22 +275,17 @@ export const agentRouter = router({
           steps: result.steps,
           toolCalls,
           toolResults,
+          mode: AGENT_MODE,
         };
       } catch (error) {
         console.error("[Agent Router] Error:", error);
-
-        // Log more details about the error
         if (error instanceof Error) {
-          console.error("[Agent Router] Error name:", error.name);
-          console.error("[Agent Router] Error message:", error.message);
-          console.error("[Agent Router] Error stack:", error.stack);
+          console.error("[Agent Router] Error:", error.message);
         }
-
         throw error;
       }
     }),
 
-  // Set the Rill project path
   setProjectPath: publicProcedure
     .input(
       z.object({
@@ -182,4 +296,12 @@ export const agentRouter = router({
       setDefaultRillProjectPath(input.projectPath);
       return { success: true, projectPath: input.projectPath };
     }),
+
+  // Get current mode for debugging
+  getMode: publicProcedure.query(() => {
+    return {
+      mode: AGENT_MODE,
+      projectPath: defaultRillProjectPath,
+    };
+  }),
 });

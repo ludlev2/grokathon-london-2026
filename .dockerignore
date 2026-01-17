@@ -1,0 +1,40 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs (will be created in Docker)
+**/dist
+
+# Development
+.git
+.gitignore
+*.md
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test & Debug
+coverage
+*.log
+npm-debug.log*
+
+# Local database
+*.db
+*.db-journal
+local.db
+
+# Turbo
+.turbo
+
+# Web app (not needed for server Docker)
+apps/web

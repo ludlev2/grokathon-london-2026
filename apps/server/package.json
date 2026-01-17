@@ -7,6 +7,8 @@
     "check-types": "tsc -b",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "tsx watch src/index.ts",
+    "dev:specialized": "AGENT_MODE=specialized tsx watch src/index.ts",
+    "dev:general": "AGENT_MODE=general tsx watch src/index.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {

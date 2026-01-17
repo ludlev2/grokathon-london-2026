@@ -1,11 +1,30 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Bot, Send, User, Loader2, ChevronDown, ChevronUp, Wrench, Sparkles, Check } from "lucide-react";
-import { env } from "@grokathon-london-2026/env/web";
+import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
+import { Bot, Send, User, Loader2, ChevronDown, ChevronUp, Wrench, Sparkles, Check, Terminal } from "lucide-react";
 import Markdown from "react-markdown";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+
+// Mode configuration
+type AgentMode = "specialized" | "general";
+
+const MODE_CONFIG = {
+  specialized: {
+    port: 3000,
+    label: "Specialized",
+    description: "11 Rill-specific tools",
+    color: "bg-blue-500",
+    icon: Wrench,
+  },
+  general: {
+    port: 3002,
+    label: "General",
+    description: "2 tools (bash + SQL)",
+    color: "bg-green-500",
+    icon: Terminal,
+  },
+} as const;
 
 // Helper to parse and extract the actual content from tool results
 function parseToolOutput(result: unknown): unknown {
@@ -106,9 +125,10 @@ function ToolCallItem({
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Format tool name nicely (rill_list_sources -> List Sources)
+  // Format tool name nicely (rill_list_sources -> List Sources, execute_bash -> Bash)
   const displayName = toolName
     .replace(/^rill_/, "")
+    .replace(/^execute_/, "")
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
@@ -191,8 +211,20 @@ function formatArgsPreview(args: unknown): string {
   return entries.length > 2 ? `${preview}, ...` : preview;
 }
 
+// Search params type
+type AgentSearchParams = {
+  mode?: AgentMode;
+};
+
 export const Route = createFileRoute("/agent")({
   component: AgentComponent,
+  validateSearch: (search: Record<string, unknown>): AgentSearchParams => {
+    return {
+      mode: search.mode === "specialized" || search.mode === "general"
+        ? search.mode
+        : undefined,
+    };
+  },
 });
 
 type ToolCall = {
@@ -229,6 +261,11 @@ type StreamEvent =
   | { type: "error"; error: string };
 
 function AgentComponent() {
+  const search = useSearch({ from: "/agent" });
+  const navigate = useNavigate({ from: "/agent" });
+  const mode: AgentMode = search.mode || "general";
+  const config = MODE_CONFIG[mode];
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -238,6 +275,16 @@ function AgentComponent() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const userHasScrolledUp = useRef(false);
+
+  // Get server URL based on mode
+  const serverUrl = `http://localhost:${config.port}`;
+
+  const toggleMode = () => {
+    const newMode = mode === "general" ? "specialized" : "general";
+    void navigate({ search: { mode: newMode } });
+    // Clear messages when switching modes
+    setMessages([]);
+  };
 
   const toggleExpanded = (messageId: string) => {
     setExpandedMessages((prev) => {
@@ -305,7 +352,7 @@ function AgentComponent() {
     try {
       abortControllerRef.current = new AbortController();
 
-      const response = await fetch(`${env.VITE_SERVER_URL}/api/chat/stream`, {
+      const response = await fetch(`${serverUrl}/api/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -364,7 +411,7 @@ function AgentComponent() {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, []);
+  }, [serverUrl]);
 
   const handleStreamEvent = (messageId: string, event: StreamEvent) => {
     switch (event.type) {
@@ -475,16 +522,40 @@ function AgentComponent() {
     setIsStreaming(false);
   };
 
+  const ModeIcon = config.icon;
+
   return (
     <div className="flex h-[calc(100vh-6rem)] flex-col">
       <div className="mb-4 border-b pb-4">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Sparkles className="h-6 w-6 text-primary" />
-          AI Data Analyst
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Chat with the Grok-powered data analyst. Ask questions about your data.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-primary" />
+              AI Data Analyst
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Chat with the Grok-powered data analyst. Ask questions about your data.
+            </p>
+          </div>
+
+          {/* Mode Toggle */}
+          <button
+            type="button"
+            onClick={toggleMode}
+            disabled={isStreaming}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            <div className={`w-2 h-2 rounded-full ${config.color}`} />
+            <ModeIcon className="h-4 w-4" />
+            <div className="text-left">
+              <div className="text-sm font-medium">{config.label}</div>
+              <div className="text-[10px] text-muted-foreground">{config.description}</div>
+            </div>
+            <span className="text-xs text-muted-foreground ml-2">
+              :{config.port}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Messages area */}
@@ -502,6 +573,11 @@ function AgentComponent() {
                 Ask questions about your data. The agent can explore data sources,
                 run SQL queries, and analyze metrics.
               </p>
+              <div className="text-xs text-muted-foreground mb-4 p-2 bg-muted/50 rounded">
+                Mode: <span className="font-medium">{config.label}</span> ({config.description})
+                <br />
+                <span className="text-[10px]">Click toggle above to switch • Open another tab for side-by-side</span>
+              </div>
               <div className="flex flex-wrap gap-2 justify-center">
                 <Button
                   variant="outline"

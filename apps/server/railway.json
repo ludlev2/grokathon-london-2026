@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pnpm install && pnpm --filter @grokathon-london-2026/db build && pnpm --filter @grokathon-london-2026/env build && pnpm --filter @grokathon-london-2026/agent build && pnpm --filter @grokathon-london-2026/api build && pnpm --filter server build"
+  },
+  "deploy": {
+    "startCommand": "node apps/server/dist/index.js",
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}
