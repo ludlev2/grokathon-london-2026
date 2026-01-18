@@ -42,31 +42,6 @@ export function createLocalRillService(): RillService {
     }
   }
 
-  async function parseJsonOutput<T>(output: string): Promise<T> {
-    try {
-      // Strip any upgrade messages or other non-JSON prefix
-      let cleanOutput = output;
-      const jsonStart = output.indexOf('[');
-      const jsonObjStart = output.indexOf('{');
-
-      if (jsonStart === -1 && jsonObjStart === -1) {
-        throw new Error(`No JSON found in output`);
-      }
-
-      const startIdx = jsonStart === -1 ? jsonObjStart :
-                       jsonObjStart === -1 ? jsonStart :
-                       Math.min(jsonStart, jsonObjStart);
-
-      if (startIdx > 0) {
-        cleanOutput = output.slice(startIdx);
-      }
-
-      return JSON.parse(cleanOutput) as T;
-    } catch (e) {
-      throw new Error(`Failed to parse Rill output: ${output.slice(0, 200)}`);
-    }
-  }
-
   return {
     async query(projectPath, sql) {
       const startTime = Date.now();
@@ -79,24 +54,17 @@ export function createLocalRillService(): RillService {
         "--local",
         "--sql",
         `'${escapedSql}'`,
-        "--format",
-        "json",
       ]);
 
-      const data = await parseJsonOutput<Record<string, unknown>[]>(output);
-      const columns = data.length > 0 ? Object.keys(data[0] ?? {}) : [];
-
       return {
-        columns,
-        rows: data,
-        rowCount: data.length,
+        rawOutput: output,
         executionTimeMs: Date.now() - startTime,
       };
     },
 
     async queryWithResolver(projectPath, resolver, properties) {
       const startTime = Date.now();
-      const args = ["query", ".", "--local", "--resolver", resolver, "--format", "json"];
+      const args = ["query", ".", "--local", "--resolver", resolver];
 
       for (const [key, value] of Object.entries(properties)) {
         // Use single quotes to prevent shell interpretation of {} and []
@@ -104,13 +72,9 @@ export function createLocalRillService(): RillService {
       }
 
       const output = await runRillCommand(projectPath, args);
-      const data = await parseJsonOutput<Record<string, unknown>[]>(output);
-      const columns = data.length > 0 ? Object.keys(data[0] ?? {}) : [];
 
       return {
-        columns,
-        rows: data,
-        rowCount: data.length,
+        rawOutput: output,
         executionTimeMs: Date.now() - startTime,
       };
     },

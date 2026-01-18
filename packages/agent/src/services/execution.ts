@@ -27,9 +27,8 @@ export interface SQLOptions {
 }
 
 export interface SQLResult {
-  columns: string[];
-  rows: Record<string, unknown>[];
-  rowCount: number;
+  /** Raw output from rill query command */
+  rawOutput: string;
   durationMs: number;
 }
 
@@ -50,7 +49,7 @@ export interface ExecutionService {
 
   /**
    * Execute a SQL query via `rill query --local`.
-   * Only SELECT/WITH queries are allowed.
+   * Destructive operations (INSERT, UPDATE, DELETE, DROP, etc.) are blocked.
    */
   executeSQL(sql: string, options?: SQLOptions): Promise<SQLResult>;
 }

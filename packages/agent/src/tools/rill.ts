@@ -44,9 +44,7 @@ interface RillDashboard {
 }
 
 interface RillQueryResult {
-  columns: string[];
-  rows: Record<string, unknown>[];
-  rowCount: number;
+  rawOutput: string;
   executionTimeMs?: number;
 }
 
@@ -141,11 +139,8 @@ Examples:
 
         return jsonResult({
           success: true,
-          rowCount: result.rowCount,
           executionTimeMs: result.executionTimeMs,
-          columns: result.columns,
-          rows: result.rows.slice(0, 100),
-          truncated: result.rowCount > 100,
+          output: result.rawOutput,
         });
       } catch (error) {
         return errorResult(
@@ -218,10 +213,8 @@ Example: SELECT region, total_revenue FROM my_metrics_view WHERE country = 'US' 
           success: true,
           metricsView,
           sql,
-          rowCount: result.rowCount,
-          columns: result.columns,
-          rows: result.rows.slice(0, 100),
-          truncated: result.rowCount > 100,
+          executionTimeMs: result.executionTimeMs,
+          output: result.rawOutput,
         });
       } catch (error) {
         return errorResult(

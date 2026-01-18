@@ -48,7 +48,10 @@ function parseToolOutput(result: unknown): unknown {
 function formatCompactOutput(data: unknown): React.ReactNode {
   if (data === null || data === undefined) return <span className="text-muted-foreground">null</span>;
 
-  if (typeof data === "string") return data;
+  if (typeof data === "string") {
+    // Preserve newlines in string output (e.g., tabular SQL results)
+    return <pre className="whitespace-pre-wrap font-mono text-xs">{data}</pre>;
+  }
   if (typeof data === "number" || typeof data === "boolean") return String(data);
 
   if (Array.isArray(data)) {
@@ -91,13 +94,18 @@ function formatCompactOutput(data: unknown): React.ReactNode {
     // For small objects, show inline
     if (entries.length <= 5) {
       return (
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           {entries.map(([key, value]) => (
             <div key={key} className="text-xs">
               <span className="text-muted-foreground">{key}:</span>{" "}
-              <span className="font-medium">
-                {typeof value === "object" ? JSON.stringify(value) : String(value)}
-              </span>
+              {typeof value === "string" && value.includes("\n") ? (
+                // Multiline string - render with preserved formatting
+                <pre className="mt-1 whitespace-pre-wrap font-mono text-xs overflow-x-auto">{value}</pre>
+              ) : (
+                <span className="font-medium">
+                  {typeof value === "object" ? JSON.stringify(value) : String(value)}
+                </span>
+              )}
             </div>
           ))}
         </div>

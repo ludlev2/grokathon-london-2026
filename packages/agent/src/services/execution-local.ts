@@ -97,7 +97,7 @@ export function createLocalExecutionService(
 
       // Escape double quotes in SQL for shell command
       const escapedSql = sql.replace(/"/g, '\\"');
-      const command = `rill query --local --sql "${escapedSql}" --format json`;
+      const command = `rill query --local --sql "${escapedSql}"`;
 
       try {
         const result = await execAsync(command, {
@@ -107,14 +107,8 @@ export function createLocalExecutionService(
           shell: "/bin/bash",
         });
 
-        // Parse JSON output from rill query
-        const rows = JSON.parse(result.stdout) as Record<string, unknown>[];
-        const columns = rows.length > 0 ? Object.keys(rows[0] ?? {}) : [];
-
         return {
-          columns,
-          rows,
-          rowCount: rows.length,
+          rawOutput: result.stdout,
           durationMs: Date.now() - startTime,
         };
       } catch (error) {
@@ -125,18 +119,12 @@ export function createLocalExecutionService(
           message?: string;
         };
 
-        // Try to parse partial output if available
+        // Return partial output if available
         if (execError.stdout) {
-          try {
-            const rows = JSON.parse(execError.stdout) as Record<
-              string,
-              unknown
-            >[];
-            const columns = rows.length > 0 ? Object.keys(rows[0] ?? {}) : [];
-            return { columns, rows, rowCount: rows.length, durationMs };
-          } catch {
-            // JSON parse failed, throw original error
-          }
+          return {
+            rawOutput: execError.stdout,
+            durationMs,
+          };
         }
 
         throw new Error(

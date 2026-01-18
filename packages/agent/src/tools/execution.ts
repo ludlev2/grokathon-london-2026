@@ -76,16 +76,17 @@ ORDER BY total_revenue DESC
 \`\`\`
 
 ## Rules
-- Only SELECT and WITH (CTE) statements are allowed
 - No INSERT, UPDATE, DELETE, DROP, or DDL statements
 - Use the table name from the metrics view's "table" field
 - Apply dimension column mappings in SELECT and GROUP BY
 
 ## Examples
-1. Get all data: \`SELECT * FROM orders_enriched LIMIT 10\`
-2. Aggregate by dimension: \`SELECT region, SUM(amount) FROM orders GROUP BY region\`
-3. Time-based analysis: \`SELECT DATE_TRUNC('month', order_date) as month, SUM(revenue) FROM sales GROUP BY 1\`
-4. CTEs for complex queries:
+1. Show available tables: \`SHOW TABLES\`
+2. Describe a table: \`DESCRIBE orders_enriched\`
+3. Get all data: \`SELECT * FROM orders_enriched LIMIT 10\`
+4. Aggregate by dimension: \`SELECT region, SUM(amount) FROM orders GROUP BY region\`
+5. Time-based analysis: \`SELECT DATE_TRUNC('month', order_date) as month, SUM(revenue) FROM sales GROUP BY 1\`
+6. CTEs for complex queries:
    \`\`\`sql
    WITH monthly AS (
      SELECT DATE_TRUNC('month', order_date) as month, SUM(amount) as total
@@ -142,13 +143,12 @@ export function createExecutionTools(
           .string()
           .min(1)
           .max(10000)
-          .describe("The SQL query to execute (SELECT/WITH only)"),
+          .describe("The SQL query to execute"),
       }),
       // Limit context usage - only keep 3 most recent SQL results
       ephemeral: 3,
       async execute({ sql }) {
-        // Validate SQL is read-only
-        const sqlUpper = sql.trim().toUpperCase();
+        // Block destructive operations only
         const forbiddenKeywords = [
           "INSERT",
           "UPDATE",
@@ -166,26 +166,17 @@ export function createExecutionTools(
           const pattern = new RegExp(`(^|\\s)${keyword}\\s`, "i");
           if (pattern.test(sql)) {
             return errorResult(
-              `Only SELECT and WITH queries are allowed. Found forbidden keyword: ${keyword}`
+              `Destructive operations are not allowed. Found forbidden keyword: ${keyword}`
             );
           }
-        }
-
-        // Ensure query starts with SELECT or WITH
-        if (!sqlUpper.startsWith("SELECT") && !sqlUpper.startsWith("WITH")) {
-          return errorResult(
-            "Query must start with SELECT or WITH. Only read-only queries are allowed."
-          );
         }
 
         try {
           const result = await service.executeSQL(sql);
 
-          // Format result with column info and data
+          // Return raw output for the model to interpret
           return jsonResult({
-            columns: result.columns,
-            rows: result.rows,
-            rowCount: result.rowCount,
+            output: result.rawOutput,
             durationMs: result.durationMs,
           });
         } catch (error) {
