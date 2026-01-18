@@ -1,6 +1,7 @@
 import { publicProcedure, router } from "../index.js";
 import { agentRouter } from "./agent.js";
 import { snowflakeRouter } from "./snowflake.js";
+import { sandboxRouter } from "./sandbox.js";
 
 export const appRouter = router({
   healthCheck: publicProcedure.query(() => {
@@ -8,6 +9,7 @@ export const appRouter = router({
   }),
   agent: agentRouter,
   snowflake: snowflakeRouter,
+  sandbox: sandboxRouter,
 });
 
 export type AppRouter = typeof appRouter;

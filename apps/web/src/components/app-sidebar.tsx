@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/sidebar"
 
 const navItems = [
-
   {
     title: "Agent",
     url: "/agent",
