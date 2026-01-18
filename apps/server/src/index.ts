@@ -15,6 +15,7 @@ import {
   // Approach B: General (2 tools)
   createExecutionTools,
   createLocalExecutionService,
+  createSandboxExecutionService,
   // Browser Use Cloud
   createBrowserUseTools,
   createBrowserUseCloudService,
@@ -26,6 +27,7 @@ import {
 import { randomUUID } from "crypto";
 
 const app = new Hono();
+const PORT = 3000;
 
 app.use(logger());
 app.use(
@@ -132,6 +134,56 @@ ORDER BY total_revenue DESC
 
 Remember: Your goal is to help users gain actionable insights from their data.`;
 
+const SANDBOX_AGENT_SYSTEM_PROMPT = `You are an expert Data Analyst AI assistant running inside a Daytona sandbox. You have two tools:
+
+1. **execute_bash** - Explore the Rill project filesystem
+2. **execute_sql** - Query data via DuckDB
+
+## Important: Working Directory
+All your commands are automatically executed within the configured working directory in the sandbox. This is typically /tmp/<volume-name> where your Rill project is located.
+
+## Rill Project Structure
+- sources/   - Data source definitions (YAML)
+- models/    - SQL transformations (*.sql)
+- metrics/   - Metrics views with dimensions/measures (YAML)
+- dashboards/ - Dashboard configs (YAML)
+- rill.yaml  - Project configuration
+
+## Workflow
+1. Start by exploring: \`ls -la\` to see project structure
+2. Read metrics YAML files to understand available data: \`cat metrics/*.yaml\`
+3. Understand models by reading SQL files: \`cat models/*.sql\`
+4. Translate measure expressions to SQL queries
+5. Query and analyze data
+
+## Translating Metrics to SQL
+When you see in a metrics YAML:
+\`\`\`yaml
+table: orders_enriched
+dimensions:
+  - name: region
+    column: customer_region
+measures:
+  - name: total_revenue
+    expression: SUM(amount)
+\`\`\`
+
+Write SQL as:
+\`\`\`sql
+SELECT customer_region as region, SUM(amount) as total_revenue
+FROM orders_enriched
+GROUP BY customer_region
+ORDER BY total_revenue DESC
+\`\`\`
+
+## Best Practices
+- Always explore the project first to understand the data
+- Read metrics YAML to see predefined dimensions and measures
+- Use LIMIT for initial queries to preview data
+- Explain your analysis approach clearly
+
+Remember: You are running inside an isolated sandbox environment. Your goal is to help users gain actionable insights from their data.`;
+
 // ===========================================
 // AGENT CONFIGURATION
 // ===========================================
@@ -166,8 +218,19 @@ interface Session {
   lastAccessedAt: number;
 }
 
+interface SandboxSession {
+  id: string;
+  agent: Agent;
+  context: AgentContext;
+  sandboxId: string;
+  workingDirectory: string;
+  createdAt: number;
+  lastAccessedAt: number;
+}
+
 // In-memory session storage (consider Redis for production)
 const sessions = new Map<string, Session>();
+const sandboxSessions = new Map<string, SandboxSession>();
 
 // Clean up old sessions (older than 1 hour)
 const SESSION_TTL_MS = 60 * 60 * 1000;
@@ -177,6 +240,12 @@ setInterval(() => {
     if (now - session.lastAccessedAt > SESSION_TTL_MS) {
       sessions.delete(id);
       console.log(`[Session] Expired: ${id}`);
+    }
+  }
+  for (const [id, session] of sandboxSessions.entries()) {
+    if (now - session.lastAccessedAt > SESSION_TTL_MS) {
+      sandboxSessions.delete(id);
+      console.log(`[SandboxSession] Expired: ${id}`);
     }
   }
 }, 5 * 60 * 1000); // Check every 5 minutes
@@ -219,6 +288,23 @@ ONLY use browser_execute_skill with existing skills. Do NOT use browser_run_task
   return createAgent({
     systemPrompt: GENERAL_SYSTEM_PROMPT + browserPromptAddition,
     tools: { ...executionTools, ...browserTools },
+    maxSteps: 25,
+  });
+}
+
+/**
+ * Create a sandbox agent that executes commands against a Daytona sandbox
+ */
+function createSandboxAgent(sandboxId: string, workingDirectory: string) {
+  const executionService = createSandboxExecutionService({
+    sandboxId,
+    workingDirectory,
+    serverUrl: `http://localhost:${PORT}`,
+  });
+  const executionTools = createExecutionTools(executionService);
+  return createAgent({
+    systemPrompt: SANDBOX_AGENT_SYSTEM_PROMPT,
+    tools: executionTools,
     maxSteps: 25,
   });
 }
@@ -319,7 +405,120 @@ app.get("/api/config", (c) => {
   });
 });
 
-const PORT = 3000;
+// ===========================================
+// SANDBOX AGENT STREAMING ENDPOINT
+// ===========================================
+
+// Sandbox agent streaming endpoint
+app.post("/api/sandbox-agent/stream", async (c) => {
+  const body = await c.req.json<{
+    message: string;
+    sandboxId: string;
+    workingDirectory: string;
+    sessionId?: string;
+  }>();
+  const { message, sandboxId, workingDirectory, sessionId } = body;
+
+  if (!message || typeof message !== "string") {
+    return c.json({ error: "Message is required" }, 400);
+  }
+
+  if (!sandboxId || typeof sandboxId !== "string") {
+    return c.json({ error: "Sandbox ID is required" }, 400);
+  }
+
+  if (!workingDirectory || typeof workingDirectory !== "string") {
+    return c.json({ error: "Working directory is required" }, 400);
+  }
+
+  console.log("[SandboxAgent] Message:", message.slice(0, 100));
+  console.log("[SandboxAgent] Sandbox:", sandboxId);
+  console.log("[SandboxAgent] Working Directory:", workingDirectory);
+  console.log("[SandboxAgent] Session:", sessionId || "new");
+
+  return streamSSE(c, async (stream) => {
+    try {
+      let session: SandboxSession;
+      let isNewSession = false;
+
+      // Check if we have an existing session with the same sandbox and working directory
+      if (sessionId && sandboxSessions.has(sessionId)) {
+        const existingSession = sandboxSessions.get(sessionId)!;
+        // Only reuse session if sandbox and working directory match
+        if (existingSession.sandboxId === sandboxId && existingSession.workingDirectory === workingDirectory) {
+          session = existingSession;
+          session.lastAccessedAt = Date.now();
+          console.log(`[SandboxSession] Continuing: ${sessionId}`);
+        } else {
+          // Create new session if sandbox or working directory changed
+          const agent = createSandboxAgent(sandboxId, workingDirectory);
+          const newSessionId = randomUUID();
+
+          session = {
+            id: newSessionId,
+            agent,
+            context: agent.createNewContext(),
+            sandboxId,
+            workingDirectory,
+            createdAt: Date.now(),
+            lastAccessedAt: Date.now(),
+          };
+
+          sandboxSessions.set(newSessionId, session);
+          isNewSession = true;
+          console.log(`[SandboxSession] Created (config changed): ${newSessionId}`);
+        }
+      } else {
+        // Create new session
+        const agent = createSandboxAgent(sandboxId, workingDirectory);
+        const newSessionId = randomUUID();
+
+        session = {
+          id: newSessionId,
+          agent,
+          context: agent.createNewContext(),
+          sandboxId,
+          workingDirectory,
+          createdAt: Date.now(),
+          lastAccessedAt: Date.now(),
+        };
+
+        sandboxSessions.set(newSessionId, session);
+        isNewSession = true;
+        console.log(`[SandboxSession] Created: ${newSessionId}`);
+      }
+
+      // Send session info first
+      await stream.writeSSE({
+        data: JSON.stringify({
+          type: "session",
+          sessionId: session.id,
+          isNew: isNewSession,
+        }),
+        event: "session",
+      });
+
+      // Stream the response
+      const eventStream = session.agent.continueConversationStream(session.context, message);
+
+      for await (const event of eventStream) {
+        await stream.writeSSE({
+          data: JSON.stringify(event),
+          event: event.type,
+        });
+      }
+    } catch (error) {
+      console.error("[SandboxAgent] Error:", error);
+      await stream.writeSSE({
+        data: JSON.stringify({
+          type: "error",
+          error: error instanceof Error ? error.message : "Unknown error",
+        }),
+        event: "error",
+      });
+    }
+  });
+});
 
 serve(
   {

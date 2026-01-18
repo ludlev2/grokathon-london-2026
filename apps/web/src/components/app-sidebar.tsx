@@ -1,5 +1,5 @@
 import { useLocation } from "@tanstack/react-router"
-import { Bot, Plug } from "lucide-react"
+import { Bot, Plug, FlaskConical, Camera, HardDrive, BotMessageSquare } from "lucide-react"
 
 import {
   Sidebar,
@@ -24,6 +24,29 @@ const navItems = [
     title: "Integrations",
     url: "/integrations",
     icon: Plug,
+  },
+]
+
+const sandboxItems = [
+  {
+    title: "Sandbox",
+    url: "/sandbox",
+    icon: FlaskConical,
+  },
+  {
+    title: "Sandbox Agent",
+    url: "/sandbox-agent",
+    icon: BotMessageSquare,
+  },
+  {
+    title: "Snapshots",
+    url: "/snapshots",
+    icon: Camera,
+  },
+  {
+    title: "Volumes",
+    url: "/volumes",
+    icon: HardDrive,
   },
 ]
 
@@ -55,6 +78,27 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === item.url}
+                    tooltip={item.title}
+                  >
+                    <a href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Sandbox</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {sandboxItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

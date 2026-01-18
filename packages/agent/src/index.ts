@@ -49,6 +49,7 @@ export type {
   SQLOptions,
 } from "./services/execution.js";
 export { createLocalExecutionService } from "./services/execution-local.js";
+export { createSandboxExecutionService } from "./services/execution-sandbox.js";
 
 // ===========================================
 // Browser Use Cloud Tools
