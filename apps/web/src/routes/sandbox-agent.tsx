@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Bot,
   Send,
@@ -13,6 +13,10 @@ import {
   FlaskConical,
   RefreshCw,
   FolderOpen,
+  Play,
+  Square,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -26,9 +30,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { trpc } from "@/utils/trpc";
+import { trpc, trpcClient } from "@/utils/trpc";
 
 const SERVER_URL = "http://localhost:3000";
+
+type RillStatus = "unknown" | "checking" | "running" | "starting" | "stopped" | "error";
 
 // Helper to parse and extract the actual content from tool results
 function parseToolOutput(result: unknown): unknown {
@@ -317,6 +323,9 @@ function SandboxAgentComponent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedSandboxId, setSelectedSandboxId] = useState<string | null>(null);
   const [workingDirectory, setWorkingDirectory] = useState("/tmp/grok-vol-jaffle-shop");
+  const [rillStatus, setRillStatus] = useState<RillStatus>("unknown");
+  const [rillError, setRillError] = useState<string | null>(null);
+  const [rillPid, setRillPid] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -333,6 +342,150 @@ function SandboxAgentComponent() {
   const selectedSandbox = sandboxes?.find(
     (s) => s.sandboxId === selectedSandboxId,
   );
+
+  // Check if Rill is running on port 9009
+  const checkRillStatus = useCallback(async () => {
+    if (!selectedSandboxId) return;
+
+    setRillStatus("checking");
+    setRillError(null);
+
+    try {
+      // Check if port 9009 is listening and get the PID of any rill process
+      const result = await trpcClient.sandbox.executeCommand.mutate({
+        sandboxId: selectedSandboxId,
+        command: `
+          # Check if port 9009 is open using curl
+          if curl -s --connect-timeout 1 http://localhost:9009 >/dev/null 2>&1; then
+            echo "PORT_OPEN"
+          else
+            echo "PORT_CLOSED"
+          fi
+          # Get rill process PID if running
+          RILL_PID=$(pgrep -f "rill start" | head -1)
+          if [ -n "$RILL_PID" ]; then
+            echo "PID:$RILL_PID"
+          else
+            echo "PID:none"
+          fi
+        `,
+        timeout: 10000,
+      });
+
+      const output = result.result.trim();
+      console.log("Rill status check output:", output);
+
+      const portOpen = output.includes("PORT_OPEN");
+      const pidMatch = output.match(/PID:(\d+)/);
+      const pid = pidMatch ? pidMatch[1] : null;
+
+      if (pid) {
+        setRillPid(pid);
+      }
+
+      if (portOpen) {
+        setRillStatus("running");
+      } else {
+        setRillStatus("stopped");
+      }
+    } catch (error) {
+      console.error("Failed to check Rill status:", error);
+      setRillStatus("error");
+      setRillError(error instanceof Error ? error.message : "Failed to check Rill status");
+    }
+  }, [selectedSandboxId]);
+
+  // Kill existing Rill processes
+  const killRill = useCallback(async () => {
+    if (!selectedSandboxId) return;
+
+    try {
+      // Kill all rill processes and clean up lock files
+      const result = await trpcClient.sandbox.executeCommand.mutate({
+        sandboxId: selectedSandboxId,
+        command: `
+          # Kill any existing rill processes
+          pkill -f "rill start" 2>/dev/null || true
+          # Also try killing by stored PID if we have one
+          ${rillPid ? `kill ${rillPid} 2>/dev/null || true` : ""}
+          # Clean up any stale lock files
+          rm -rf /tmp/rill-cache/.rill 2>/dev/null || true
+          # Wait a moment for processes to die
+          sleep 1
+          echo "KILLED"
+        `,
+        timeout: 15000,
+      });
+      console.log("Kill rill result:", result.result);
+      setRillPid(null);
+    } catch (error) {
+      console.error("Failed to kill Rill:", error);
+      // Continue anyway, the start might still work
+    }
+  }, [selectedSandboxId, rillPid]);
+
+  // Start Rill in the background
+  const startRill = useCallback(async () => {
+    if (!selectedSandboxId || !workingDirectory) return;
+
+    setRillStatus("starting");
+    setRillError(null);
+
+    try {
+      // First, kill any existing Rill processes to avoid lock issues
+      await killRill();
+
+      // Start Rill in the background with nohup
+      const startCommand = `cd "${workingDirectory}" && XDG_DATA_HOME=/tmp/rill-cache nohup rill start --no-open --port 9009 > /tmp/rill.log 2>&1 & echo $!`;
+
+      const result = await trpcClient.sandbox.executeCommand.mutate({
+        sandboxId: selectedSandboxId,
+        command: startCommand,
+        timeout: 30000,
+      });
+
+      const pid = result.result.trim();
+      console.log("Rill started with PID:", pid);
+
+      if (pid && /^\d+$/.test(pid)) {
+        setRillPid(pid);
+      }
+
+      // Wait a moment for Rill to start, then check status
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await checkRillStatus();
+    } catch (error) {
+      console.error("Failed to start Rill:", error);
+      setRillStatus("error");
+      setRillError(error instanceof Error ? error.message : "Failed to start Rill");
+    }
+  }, [selectedSandboxId, workingDirectory, killRill, checkRillStatus]);
+
+  // Stop Rill (kill process)
+  const stopRill = useCallback(async () => {
+    if (!selectedSandboxId) return;
+
+    setRillStatus("checking");
+    setRillError(null);
+
+    try {
+      await killRill();
+      await checkRillStatus();
+    } catch (error) {
+      console.error("Failed to stop Rill:", error);
+      setRillStatus("error");
+      setRillError(error instanceof Error ? error.message : "Failed to stop Rill");
+    }
+  }, [selectedSandboxId, killRill, checkRillStatus]);
+
+  // Check Rill status when sandbox or working directory changes
+  useEffect(() => {
+    if (selectedSandboxId && workingDirectory && selectedSandbox?.state === "started") {
+      checkRillStatus();
+    } else {
+      setRillStatus("unknown");
+    }
+  }, [selectedSandboxId, workingDirectory, selectedSandbox?.state, checkRillStatus]);
 
   const toggleExpanded = (messageId: string) => {
     setExpandedMessages((prev) => {
@@ -374,6 +527,10 @@ function SandboxAgentComponent() {
     // Clear messages and session when switching sandboxes
     setMessages([]);
     setSessionId(null);
+    // Reset Rill status - will be checked by useEffect
+    setRillStatus("unknown");
+    setRillError(null);
+    setRillPid(null);
   }, []);
 
   const streamChat = useCallback(async (messageText: string) => {
@@ -607,7 +764,7 @@ function SandboxAgentComponent() {
     setIsStreaming(false);
   };
 
-  const canChat = selectedSandbox && selectedSandbox.state === "started" && workingDirectory.trim();
+  const canChat = selectedSandbox && selectedSandbox.state === "started" && workingDirectory.trim() && rillStatus === "running";
 
   return (
     <div className="flex h-[calc(100vh-6rem)] flex-col">
@@ -716,6 +873,100 @@ function SandboxAgentComponent() {
               className="flex-1 max-w-md rounded-md border bg-background px-3 py-1.5 text-sm font-mono"
               disabled={isStreaming}
             />
+          </div>
+        )}
+
+        {/* Rill status indicator */}
+        {selectedSandbox && selectedSandbox.state === "started" && workingDirectory && (
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Terminal className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Rill Server:</span>
+              {rillStatus === "checking" && (
+                <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Checking...
+                </span>
+              )}
+              {rillStatus === "running" && (
+                <span className="flex items-center gap-1 text-sm text-green-600">
+                  <CheckCircle className="h-3 w-3" />
+                  Running on port 9009
+                  {rillPid && <span className="text-muted-foreground ml-1">(PID: {rillPid})</span>}
+                </span>
+              )}
+              {rillStatus === "stopped" && (
+                <span className="flex items-center gap-1 text-sm text-orange-600">
+                  <AlertCircle className="h-3 w-3" />
+                  Not running
+                </span>
+              )}
+              {rillStatus === "starting" && (
+                <span className="flex items-center gap-1 text-sm text-blue-600">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Starting...
+                </span>
+              )}
+              {rillStatus === "error" && (
+                <span className="flex items-center gap-1 text-sm text-red-600">
+                  <AlertCircle className="h-3 w-3" />
+                  Error
+                </span>
+              )}
+              {rillStatus === "unknown" && (
+                <span className="text-sm text-muted-foreground">Unknown</span>
+              )}
+            </div>
+
+            {/* Rill control buttons */}
+            {rillStatus === "stopped" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={startRill}
+                disabled={isStreaming}
+              >
+                <Play className="h-3 w-3 mr-1" />
+                Start Rill
+              </Button>
+            )}
+            {rillStatus === "running" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={stopRill}
+                  disabled={isStreaming}
+                  className="text-orange-600 hover:text-orange-700"
+                >
+                  <Square className="h-3 w-3 mr-1" />
+                  Stop
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={startRill}
+                  disabled={isStreaming}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Restart
+                </Button>
+              </>
+            )}
+            {rillStatus === "error" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={checkRillStatus}
+                disabled={isStreaming}
+              >
+                <RefreshCw className="h-3 w-3" />
+              </Button>
+            )}
+
+            {rillError && (
+              <span className="text-xs text-red-500 ml-2">{rillError}</span>
+            )}
           </div>
         )}
       </div>
@@ -885,9 +1136,15 @@ function SandboxAgentComponent() {
             placeholder={
               canChat
                 ? "Ask about your data... (Press Enter to send, Shift+Enter for new line)"
-                : selectedSandbox
-                  ? "Enter a working directory to start chatting..."
-                  : "Select a running sandbox to start chatting..."
+                : selectedSandbox && rillStatus !== "running"
+                  ? rillStatus === "stopped"
+                    ? "Start Rill server to begin chatting..."
+                    : rillStatus === "starting" || rillStatus === "checking"
+                      ? "Waiting for Rill server..."
+                      : "Check Rill server status..."
+                  : selectedSandbox
+                    ? "Enter a working directory to start chatting..."
+                    : "Select a running sandbox to start chatting..."
             }
             className="min-h-[60px] resize-none"
             disabled={isStreaming || !canChat}
