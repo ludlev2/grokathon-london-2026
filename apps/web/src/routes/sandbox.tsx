@@ -1336,42 +1336,33 @@ print("Hello from Daytona sandbox!")
 							<div className="grid grid-cols-3 gap-3">
 								<div>
 									<label className="mb-1 block text-muted-foreground text-xs">CPU (cores)</label>
-									<select
+									<input
+										type="number"
+										min={1}
 										value={sandboxCpu}
-										onChange={(e) => setSandboxCpu(Number(e.target.value))}
+										onChange={(e) => setSandboxCpu(Number(e.target.value) || 1)}
 										className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-									>
-										<option value={1}>1</option>
-										<option value={2}>2</option>
-										<option value={4}>4</option>
-										<option value={8}>8</option>
-									</select>
+									/>
 								</div>
 								<div>
 									<label className="mb-1 block text-muted-foreground text-xs">Memory (GB)</label>
-									<select
+									<input
+										type="number"
+										min={1}
 										value={sandboxMemory}
-										onChange={(e) => setSandboxMemory(Number(e.target.value))}
+										onChange={(e) => setSandboxMemory(Number(e.target.value) || 1)}
 										className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-									>
-										<option value={2}>2</option>
-										<option value={4}>4</option>
-										<option value={8}>8</option>
-										<option value={16}>16</option>
-									</select>
+									/>
 								</div>
 								<div>
 									<label className="mb-1 block text-muted-foreground text-xs">Disk (GB)</label>
-									<select
+									<input
+										type="number"
+										min={1}
 										value={sandboxDisk}
-										onChange={(e) => setSandboxDisk(Number(e.target.value))}
+										onChange={(e) => setSandboxDisk(Number(e.target.value) || 1)}
 										className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-									>
-										<option value={5}>5</option>
-										<option value={10}>10</option>
-										<option value={20}>20</option>
-										<option value={50}>50</option>
-									</select>
+									/>
 								</div>
 							</div>
 						</div>
