@@ -1,74 +1,98 @@
-# grokathon-london-2026
+# Grokathon London 2026
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, TRPC, and more.
+An AI-powered data analysis platform built with [Grok](https://x.ai/) (xAI). Ask questions in natural language, and an AI agent queries your data sources — Rill Data projects, Snowflake warehouses, or raw SQL — and returns answers with full tool-call transparency.
 
-## Features
+Built at the xAI Grokathon, London 2026.
 
-- **TypeScript** - For type safety and improved developer experience
-- **TanStack Router** - File-based routing with full type safety
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **shadcn/ui** - Reusable UI components
-- **Hono** - Lightweight, performant server framework
-- **tRPC** - End-to-end type-safe APIs
-- **Node.js** - Runtime environment
-- **Drizzle** - TypeScript-first ORM
-- **SQLite/Turso** - Database engine
-- **Turborepo** - Optimized monorepo build system
+## What it does
 
-## Getting Started
+- **Natural language data analysis** — Chat with an AI agent that writes and executes SQL, explores schemas, and synthesizes results.
+- **Dual agent modes** — Switch between a *specialized* mode (11 Rill-specific tools for metrics, models, dashboards) and a *general* mode (bash + SQL for anything).
+- **Snowflake integration** — Connect to Snowflake with encrypted credential storage, explore schemas, and run queries.
+- **Sandbox environments** — Spin up isolated containers (via Daytona) with a web-based file browser, terminal, and code editor.
+- **Streaming responses** — Agent reasoning and tool calls stream to the UI in real time via SSE.
 
-First, install the dependencies:
+## Tech stack
+
+| Layer | Tech |
+|-------|------|
+| Frontend | React 19, TanStack Router, TanStack Query, TailwindCSS, shadcn/ui, CodeMirror |
+| Backend | Hono, tRPC, Node.js |
+| AI | Vercel AI SDK, xAI Grok |
+| Database | SQLite/Turso, Drizzle ORM |
+| Sandboxes | Daytona SDK |
+| Data | Snowflake SDK, Rill Data, DuckDB |
+| Monorepo | Turborepo, pnpm workspaces |
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20+
+- pnpm 10+
+
+### Setup
 
 ```bash
 pnpm install
+cp apps/server/.env.example apps/server/.env
+# Fill in your API keys (XAI_API_KEY, DATABASE_URL, etc.)
 ```
 
-## Database Setup
-
-This project uses SQLite with Drizzle ORM.
-
-1. Start the local SQLite database (optional):
-
-```bash
-pnpm run db:local
-```
-
-2. Update your `.env` file in the `apps/server` directory with the appropriate connection details if needed.
-
-3. Apply the schema to your database:
+### Database
 
 ```bash
 pnpm run db:push
 ```
 
-Then, run the development server:
+### Run
 
 ```bash
 pnpm run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-The API is running at [http://localhost:3000](http://localhost:3000).
+- Frontend: [http://localhost:3001](http://localhost:3001)
+- Backend: [http://localhost:3000](http://localhost:3000)
 
-## Project Structure
+## Project structure
 
 ```
 grokathon-london-2026/
 ├── apps/
-│   ├── web/         # Frontend application (React + TanStack Router)
-│   └── server/      # Backend API (Hono, TRPC)
+│   ├── web/              # React frontend
+│   └── server/           # Hono + tRPC backend
 ├── packages/
-│   ├── api/         # API layer / business logic
-│   └── db/          # Database schema & queries
+│   ├── agent/            # Grok AI agent, tools, and services
+│   ├── api/              # tRPC routers (agent, snowflake, sandbox)
+│   ├── db/               # Drizzle schema and database client
+│   ├── env/              # Validated environment variables (t3-oss/env)
+│   └── config/           # Shared TypeScript and Biome config
 ```
 
-## Available Scripts
+## Environment variables
 
-- `pnpm run dev`: Start all applications in development mode
-- `pnpm run build`: Build all applications
-- `pnpm run dev:web`: Start only the web application
-- `pnpm run dev:server`: Start only the server
-- `pnpm run check-types`: Check TypeScript types across all apps
-- `pnpm run db:push`: Push schema changes to database
-- `pnpm run db:studio`: Open database studio UI
-- `pnpm run db:local`: Start the local SQLite database
+See [`.env.example`](.env.example) for the full list. Key variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | Turso/SQLite connection string |
+| `XAI_API_KEY` | Yes | xAI Grok API key |
+| `CREDENTIALS_ENCRYPTION_KEY` | Yes | Encryption key for stored credentials |
+| `CORS_ORIGIN` | Yes | Frontend URL |
+| `DAYTONA_API_KEY` | No | For sandbox environments |
+| `BROWSER_USE_API_KEY` | No | For browser automation |
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start all apps in dev mode |
+| `pnpm build` | Build all apps |
+| `pnpm check-types` | TypeScript type checking |
+| `pnpm run check` | Biome linter |
+| `pnpm run db:push` | Push schema to database |
+| `pnpm run db:studio` | Open Drizzle Studio |
+
+## Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for Railway, Fly.io, and Docker deployment guides.
